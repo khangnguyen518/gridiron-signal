@@ -38,6 +38,8 @@ A change that breaks a decision needs a new record first.
 - `src/nfl_model/refresh.py`  scheduled refresh: sports_db freshness check, dbt build
 - `src/nfl_model/alerts.py`   Discord alerts and lineup posts
 - `src/nfl_model/record.py`   hourly Kalshi line recorder (0011)
+- `src/nfl_model/simulate.py` game simulation, ranges (0012)
+- `src/nfl_model/sim_backtest.py` calibration and test of the ranges
 - `model/model_card.json`     the live model (written by backtest, committed to deploy)
 - `deploy/`                   VM setup scripts, crontab, VM runbook (0010)
 - `tests/`                    pytest
@@ -50,6 +52,7 @@ A change that breaks a decision needs a new record first.
 - League: `uv run nflm league [--week N] [--user NAME] [--league-id ID] [--refresh] [--discord]`
 - Refresh (cron on the VM): `uv run nflm refresh [--force]`
 - Record Kalshi lines (cron on the VM, hourly): `uv run nflm record-lines`
+- Simulation ranges: `uv run nflm sim-backtest` (tunes on 2012-2018, tests 2019-2025, writes `sim`, `sim_tails`, `range_mix`, `residual_table` into the model card)
 - Test: `uv run pytest`
 - Lint and format: `uv run ruff check src tests --fix && uv run ruff format src tests`
 
@@ -64,6 +67,7 @@ A change that breaks a decision needs a new record first.
 - Projections are stat lines. Points always come from `scoring.fantasy_points` with the league's own settings. (0007)
 - Do not add level calibration without beating the current blend's MAE in the backtest. (0006)
 - Report a model change with the full `nflm backtest` summary, not one season or one position.
+- Judge ranges by pinball loss and coverage on 2019-2025 (`nflm sim-backtest`). After `nflm backtest`, rerun `nflm sim-backtest`: the ranges are tuned on the projections.
 - A tuned value on the edge of its grid means the grid is too narrow. Widen it and rerun.
 
 ## Data rules

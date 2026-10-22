@@ -22,6 +22,7 @@ A new decision gets the next number. A changed decision gets a new record that m
 | 0009 | Renormalize usage shares by who is expected to play | Accepted |
 | 0010 | Refresh on the shared loader VM, after sports_db | Accepted |
 | 0011 | Record Kalshi lines hourly, append-only | Accepted |
+| 0012 | Simulate games for ranges and win probability, mixed with history | Accepted |
 
 ## Template
 ```

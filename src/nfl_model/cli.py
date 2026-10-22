@@ -27,6 +27,8 @@ def main() -> None:
     rf = sub.add_parser("refresh", help="check sports_db freshness, then dbt build (for cron)")
     rf.add_argument("--force", action="store_true", help="build even if sports_db did not build recently")
 
+    sb = sub.add_parser("sim-backtest", help="calibrate and test the game simulation's ranges")
+    sb.add_argument("--refresh", action="store_true", help="re-read BigQuery instead of the cache")
     sub.add_parser("record-lines", help="append a snapshot of Kalshi NFL markets and lines (for cron)")
 
     args = parser.parse_args()
@@ -51,6 +53,10 @@ def main() -> None:
         from nfl_model import refresh
 
         sys.exit(refresh.main(force=args.force))
+    elif args.command == "sim-backtest":
+        from nfl_model import sim_backtest
+
+        sim_backtest.main(refresh=args.refresh)
     elif args.command == "record-lines":
         import sys
 

@@ -209,6 +209,47 @@ Off: 4.6338. Best: 4.5932.
 Partial adjustment is best: vacated usage is not fully absorbed by players with history
 (new signings and rookies take some of it).
 
+## Ranges (game simulation), 2019-2025
+
+`uv run nflm sim-backtest`, run behind `output/sim_backtests/20261022_003430/`. Projections from
+the live model; quantiles at the 10th, 25th, 50th, 75th and 90th percentiles; 39,280 player games.
+
+| Step | Seasons | Chooses |
+|---|---|---|
+| Game script | 2012-2017 | pass and rush attempt slopes on margin deviation |
+| Calibration | 2016-2018 | kappa, eta, yards noise (36 settings), then tail stretch per position |
+| Mix | 2017-2018 | weight on the simulation vs history, per position |
+| Test | 2019-2025 | nothing; scored only |
+
+**Pinball loss** is the average quantile loss over the five percentiles (lower is better, a proper
+score for ranges). **Coverage**: the 10-90 range should hold 80% of outcomes, 25-75 should hold 50%.
+
+| Ranges | Pinball | 10-90 coverage | 25-75 coverage | Below p10 | Above p90 |
+|---|---|---|---|---|---|
+| **Mixed (live)** | **1.5369** | 79.7% | 50.6% | 10.0% | 10.4% |
+| History only (residual baseline) | 1.5419 | 80.0% | 50.6% | 10.3% | 9.8% |
+| Simulation, tails stretched | 1.5453 | 81.9% | 55.3% | 6.5% | 11.6% |
+| Simulation only | 1.5465 | 80.3% | 54.1% | 7.9% | 11.8% |
+| Mixed, centered on the blend, live code path | 1.5677 | 81.4% | 51.5% | 8.1% | 10.5% |
+
+By position (mixed): QB 76.7% coverage, RB 82.4%, WR 78.5%, TE 80.4%.
+
+The last row runs exactly the live transform (`mix_with_residuals`) with a history table built only
+from 2016-2018, centered on the blend (35,386 rows with a Sleeper projection). Its pinball loss is
+higher because the blend rows are a different set; its coverage is what matters there.
+
+**What this says:**
+- **Mixing beats either source alone.** The simulation knows each player's situation (volume,
+  touchdown dependence); history knows how projections miss in practice. The average of their
+  quantiles scores better than both.
+- **QB ranges come from history.** The simulation made QBs too narrow (17% of games below its 10th
+  percentile): it misses busts like injuries, benchings and blowouts that end early. History alone
+  scored best for QBs, and even it covers only 77%: QB outcomes have fat tails.
+- **Correlation is the simulation's real contribution.** A QB and his top receiver correlate 0.40 in
+  the simulation and 0.32 in real games (2023-2025, after the live transforms): the right sign and
+  size, slightly too strong. History alone has no correlation at all, and win probability needs it.
+- **Typical 10-90 width (simulation):** QB 19.7 points, RB 13.9, WR 14.6, TE 10.8.
+
 ## Things tried and dropped
 
 | Idea | Result | Why |
@@ -217,6 +258,7 @@ Partial adjustment is best: vacated usage is not fully absorbed by players with 
 | Availability with QB attempt shares summed | beta for attempts tuned to 0 (no help) | Backups keep big shares from old spot starts, so the sum is misleading. Replaced by the top QB's share. |
 | Vacated targets spread across all positions | 4.604 vs 4.596 (2016-2018) | A missing WR's targets mostly go to other WRs. Replaced by position groups. |
 | League-median usual totals per position | blend 4.528 vs 4.525 | Pushed teams toward league style (a pocket QB got 1.74x carries). Replaced by each team's own usual. |
+| Simulation ranges alone | pinball 1.5453 vs 1.5369 mixed | Too narrow at QB, too few big games overall. Kept for correlation, mixed with history for each player's range. |
 
 ## Output files
 
@@ -233,6 +275,9 @@ Partial adjustment is best: vacated usage is not fully absorbed by players with 
 | `model_card.json` | params, live variant's betas and usual-total factors, blend weights |
 
 `nflm league` uses the newest run folder that has a `model_card.json`.
+
+Simulation outputs (`output/sim_backtests/<run>/`): `calibration_grid.csv` (every setting) and
+`ranges.csv` (every row above, by position).
 
 ## Next steps that could move these numbers
 1. Discount Questionable players, and model who specifically replaces an absent starter.

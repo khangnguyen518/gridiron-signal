@@ -17,19 +17,29 @@ Without a user, the command lists every team's display name and stops. Set
 
 ## What it prints
 
+**Matchup.** Your win probability against this week's opponent, with both teams' median and
+80% range of total points. The opponent's lineup is the starters they have set in Sleeper, or their
+best-projection lineup if none are set. If swapping bench players raises win probability, the swaps
+are listed with the new win probability (saved as `lineup_max_win.csv`).
+
 **Best lineup.** Your roster placed into the league's slots to maximize total projection.
-Columns: slot, player, position, team, opponent, `proj` (what the lineup uses), `ours`,
-`sleeper`, the team's implied points, and a flag.
+Columns: slot, player, position, team, opponent, `proj` (what the lineup uses), `p10` and `p90`
+(the 80% range: one game in ten lands below p10, one above p90), `ours`, `sleeper`, the team's
+implied points, and a flag.
 
 **Bench.** Everyone else on your roster, same columns.
 
 **Close calls.** Bench players projected within 2 points of a starter whose slot they can
-fill. The backtest says these are near coin flips (about 54% for the higher projection), so
-use news, matchups and your read of the game here.
+fill, with your win probability as is and if swapped. The higher projection wins these only
+about 55% of the time, so win probability is the better tiebreaker: when you are the underdog,
+the player with more upside can be the better start even with a lower projection.
 
 **Waiver targets.** The best 8 unrostered players per position this week, sorted by
 `upgrade`: their projection minus the weakest starter they could replace in your lineup.
 Also shows recent target and carry share and Sleeper's 24-hour add count.
+
+How ranges and win probability are computed: `docs/model.md`, "Game simulation and ranges".
+How well the ranges are calibrated: `docs/backtest.md`, "Ranges".
 
 CSV copies of each table, plus every player's projections, go to
 `output/league/<league>_<season>_w<week>_<time>/`.
@@ -91,7 +101,8 @@ nested slot types that order gives the best total.
   weeks is missing, which matters most for rookies and changing roles. Follow `docs/runbook.md`.
 
 ## Limits
-- Expected points only. No score distributions or win probability yet.
+- Kicker and defense ranges are assumed Normal spreads, not backtested, and independent of their games.
+- Win probability assumes the opponent's lineup stays as set; it does not anticipate their changes.
 - Questionable players are not discounted, and their teammates are not adjusted for them.
 - Blend weights were fit on full PPR. Other scoring still gets exact points.
 - Sleeper's current team decides where a player plays; a trade shows up as soon as Sleeper updates.

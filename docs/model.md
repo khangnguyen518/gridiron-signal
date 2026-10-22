@@ -179,11 +179,49 @@ tuned to 0.5, 0.5, 0.75.
 
 See `docs/backtest.md` for how they were chosen and how much each matters.
 
+## Game simulation and ranges (`simulate.py`)
+
+Every live player gets 1,000 simulated games. The simulation plays each NFL game once per
+draw, so teammates and opponents share the same game:
+
+| Step | Draw |
+|---|---|
+| Game | home margin ~ Normal(spread, 13.2), total ~ Normal(total, 13.4) (spreads measured on 2012-2017; their correlation, 0.05, is ignored) |
+| Team | points = (total +/- margin) / 2; scoring factor F = points / implied points |
+| Script | pass attempts x exp(-0.040 x margin deviation / 7), rush attempts x exp(+0.088 x ...): a team that falls behind throws more and runs less (fit on 2012-2017) |
+| Usage | Dirichlet split of team targets and carries around each player's share (concentration kappa = 30), then Poisson counts. A pseudo-player per team holds the usage no listed player has. |
+| Efficiency | catches ~ Binomial(targets, catch rate); yards = n x mean x F^0.5 + sqrt(n) x sd x Normal, with sd 10.3 yards per catch and 6.3 per carry (measured on 2012-2017 play-by-play) |
+| Touchdowns | receiving and rushing TDs ~ Poisson(team TDs x F x red-zone share) |
+| QB | passing yards and TDs are his attempt share of the team's receiving yards and TDs, so a QB and his receivers rise and fall together |
+| Points | the league's scoring on every simulated stat line |
+
+Then, per player:
+1. **Center** the draws on the projection in use (the blend, live) by scaling.
+2. **Stretch tails** per position (downside, upside): QB 1.1, 0.9; RB 1.1, 1.0; WR 1.0, 1.1; TE 1.0, 1.0.
+3. **Mix with history.** A draw at percentile u becomes w x draw + (1 - w) x (projection + the
+   historical miss at percentile u for that position and projection quintile). Weights on the
+   simulation: QB 0, RB 0.5, WR 0.5, TE 0.75. QB ranges come from history alone, which beat the
+   simulation for QBs. The historical misses (99 percentiles x 4 positions x 5 projection
+   levels) are stored in the model card.
+
+Steps 2 and 3 only reshape each player's own range; his rank in every simulated game stays the
+same, so the correlations between players carry over. The range shown is the 10th to 90th
+percentile: 80% of outcomes should land inside it.
+
+Players with no simulation: skill players with no NFL game yet use the historical misses alone;
+kickers and defenses use Normal(projection, 4.0 or 5.5), an assumption that is not backtested.
+
+**Win probability:** your starters' simulated totals against your opponent's (their set
+starters, else their best-projection lineup), from the same draws, ties counted as half. The
+lineup search then swaps a bench player into a starter's slot while win probability rises by
+more than 0.2 points; with shared draws, the comparison between two lineups is far less noisy
+than either number alone.
+
 ## Not modeled yet
 - Questionable players are treated as playing, with no discount.
 - Who absorbs vacated usage beyond "same position group, in proportion to current shares"
   (for example, the WR2 moving into the WR1's role specifically).
 - Rookies or new signings with no NFL game absorb usage in reality but are not in S.
-- Score distributions (only expected points).
+- Correlation between kickers or defenses and the rest of the game (they are drawn independently).
 - Kickers and defenses (Sleeper only).
 - Opponent defense strength, weather, home field beyond what the lines already price in.

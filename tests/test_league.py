@@ -39,3 +39,14 @@ def test_close_calls_respect_slot_eligibility():
     calls = close_calls(lineup, bench)
     # QB2 (16) is within 2 of nothing it can play; TE1 (9) is not within 2 of the flex RB2 (12)
     assert calls.empty or "QB2" not in set(calls["bench"])
+
+
+def test_close_calls_report_win_probability_both_ways():
+    import numpy as np
+
+    r = roster().assign(_i=range(6))
+    draws = np.vstack([np.full(100, float(p)) for p in r["proj"]] + [np.full(100, 60.0)])
+    lineup = optimal_lineup(r, ["QB", "RB", "FLEX"])
+    bench = r[~r["sleeper_id"].isin(lineup["sleeper_id"])]
+    calls = close_calls(lineup, bench, [6], draws)
+    assert {"win_as_is", "win_if_swapped"} <= set(calls.columns)

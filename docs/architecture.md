@@ -34,6 +34,7 @@ sports_db (BigQuery, read only)         draft helper (BigQuery, read only)
                            │
                            ▼
               live.py       next week's projections   <── Kalshi lines (lines.py)
+              simulate.py   1,000 simulated games: ranges, matchup win probability
               league.py     lineup, close calls, waivers <── Sleeper API (sleeper.py)
                            │
                            ▼
@@ -79,7 +80,8 @@ See `deploy/README.md` and decision 0010.
 2. Build placeholder rows for this week's games and run the same feature code (`live.project_week`).
 3. Renormalize each team's shares over players Sleeper does not list as out.
 4. Swap in Kalshi lines where Kalshi lists the game.
-5. Blend with Sleeper's projection using the latest model card's weights.
+5. Blend with Sleeper's projection using the latest model card's weights, then simulate games
+   for each player's range and the matchup win probability.
 6. Pick the best lineup, list close calls and waiver targets, write CSVs.
 
 The live path reuses the backtest code on purpose: a placeholder row with zero stats sits

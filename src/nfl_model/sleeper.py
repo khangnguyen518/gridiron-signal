@@ -78,6 +78,11 @@ def users(league_id: str) -> list[dict]:
     return _get(f"/v1/league/{league_id}/users")
 
 
+def matchups(league_id: str, week: int) -> list[dict]:
+    """One entry per roster: roster_id, matchup_id, starters (player IDs, "0" for empty)."""
+    return _get(f"/v1/league/{league_id}/matchups/{week}")
+
+
 def projections(season: int, week: int) -> list[dict]:
     return _get(f"/projections/nfl/{season}/{week}", params={"season_type": "regular"})
 

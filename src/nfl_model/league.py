@@ -7,6 +7,11 @@ Projection per player:
     blend = w * ours + (1 - w) * Sleeper, with w per position from the backtest.
     Only one source available -> that source. Out / IR / suspended / bye -> 0.
 Kickers and defenses use Sleeper's projection only.
+
+Ranges and win probability come from the game simulation (simulate.py): every player
+gets draws centered on his blended projection, with teammates and opponents sharing
+game draws. Players the simulation cannot cover (kickers, defenses, rookies with no
+NFL game) get Normal draws around the projection with a position spread.
 """
 
 from datetime import datetime
@@ -15,7 +20,8 @@ import numpy as np
 import pandas as pd
 
 from nfl_model import config, sleeper
-from nfl_model.live import project_week
+from nfl_model.live import load_model_card, project_week
+from nfl_model.simulate import SimParams, mix_with_residuals, rescale, simulate, stretch_tails
 
 SLOT_ELIGIBLE: dict[str, set[str]] = {
     "QB": {"QB"},
@@ -31,12 +37,19 @@ SLOT_ELIGIBLE: dict[str, set[str]] = {
 }
 OUT_STATUSES = {"Out", "IR", "PUP", "Sus", "NA", "DNR"}
 CLOSE_CALL_POINTS = 2.0
+N_SIMS = 1000  # memory: the shared VM has 1 GB; paired comparisons keep win-probability noise low
+# Standard deviation of points for kickers and defenses, which have no simulation or history
+# here: assumed, not backtested. Skill players without a simulation use historical misses.
+FALLBACK_SD = {"K": 4.0, "DEF": 5.5}
 
 
-def build_player_table(season: int, week: int, scoring: dict[str, float]) -> tuple[pd.DataFrame, list[str]]:
-    """Every fantasy-relevant player with ours, Sleeper and blended projections."""
-    ours, notes = project_week(season, week, scoring)
-    ours = ours[
+def build_player_table(
+    season: int, week: int, scoring: dict[str, float]
+) -> tuple[pd.DataFrame, list[str], np.ndarray]:
+    """Every fantasy-relevant player with ours, Sleeper and blended projections, plus
+    simulated points (rows aligned with the table, N_SIMS columns)."""
+    ours_full, notes = project_week(season, week, scoring)
+    ours = ours_full[
         [
             "sleeper_id",
             "opponent",
@@ -87,7 +100,102 @@ def build_player_table(season: int, week: int, scoring: dict[str, float]) -> tup
     df.loc[on_bye, "flag"] = "bye"
     df.loc[is_out | on_bye, "proj"] = 0.0
     df["proj"] = df["proj"].round(2)
-    return df.drop(columns=["sleeper_opponent"]), notes
+    df = df.drop(columns=["sleeper_opponent"]).reset_index(drop=True)
+
+    draws = player_draws(df, ours_full, scoring)
+    q = np.quantile(draws, [0.1, 0.5, 0.9], axis=1)
+    df["p10"], df["p50"], df["p90"] = q[0].round(1), q[1].round(1), q[2].round(1)
+    return df, notes, draws
+
+
+def player_draws(df: pd.DataFrame, ours_full: pd.DataFrame, scoring: dict[str, float]) -> np.ndarray:
+    """Simulated points per table row, centered on each row's proj. Zero for players
+    who will not play."""
+    seed = int(pd.Timestamp.now().strftime("%Y%m%d"))
+    rng = np.random.default_rng(seed)
+    draws = np.zeros((len(df), N_SIMS), dtype=np.float32)
+    card = load_model_card()
+    table = card.get("residual_table")
+    sim_rows = ours_full.dropna(subset=["implied_points", "team_pass_attempts_hat", "sleeper_id"])
+    sim_index: dict[str, int] = {}
+    sim_draws = None
+    if "sim" in card and not sim_rows.empty:
+        sim_rows = sim_rows.reset_index(drop=True)
+        sim_draws = simulate(sim_rows, SimParams(**card["sim"]), n=N_SIMS, scoring=scoring, seed=seed)
+        sim_index = {sid: i for i, sid in enumerate(sim_rows["sleeper_id"])}
+    for i, row in enumerate(df.itertuples()):
+        if row.proj <= 0:
+            continue
+        j = sim_index.get(row.sleeper_id)
+        if sim_draws is not None and j is not None:
+            c, pos = np.array([row.proj]), np.array([row.position])
+            one = stretch_tails(rescale(sim_draws[j : j + 1], c), c, pos, card.get("sim_tails"))
+            one = mix_with_residuals(one, c, pos, card.get("residual_table"), card.get("range_mix"))
+            draws[i] = one[0]
+        elif table and row.position in table["resid"]:
+            # No simulation (no NFL game yet): historical misses for his position and projection level
+            b = int(np.digitize(row.proj, table["edges"]))
+            draws[i] = row.proj + np.interp(
+                rng.random(N_SIMS), table["levels"], table["resid"][row.position][b]
+            )
+        else:
+            sd = FALLBACK_SD.get(row.position, 6.0)
+            draws[i] = np.maximum(row.proj + sd * rng.standard_normal(N_SIMS), -4.0)
+    return draws
+
+
+def win_probability(mine: list[int], theirs: list[int], draws: np.ndarray) -> float:
+    """P(my lineup outscores theirs), ties split, from the same simulated games."""
+    a = draws[mine].sum(axis=0) if mine else np.zeros(draws.shape[1])
+    b = draws[theirs].sum(axis=0) if theirs else np.zeros(draws.shape[1])
+    return float(np.mean(a > b) + 0.5 * np.mean(a == b))
+
+
+def max_win_lineup(
+    lineup: pd.DataFrame,
+    bench: pd.DataFrame,
+    theirs: list[int],
+    draws: np.ndarray,
+    players: pd.DataFrame,
+    max_steps: int = 6,
+) -> tuple[pd.DataFrame, list[tuple[str, str, str]], float]:
+    """Starting from the best-projection lineup, repeatedly make the bench-for-starter swap
+    that raises win probability most. Returns the lineup, the swaps (slot, in, out) and
+    its win probability."""
+    # zip, not itertuples: itertuples renames columns that start with an underscore
+    slots = [(str(slot), None if pd.isna(i) else int(i)) for slot, i in zip(lineup["slot"], lineup["_i"])]
+    pool = [int(i) for i, p in zip(bench["_i"], bench["proj"]) if p > 0]
+    pos = players["position"].to_numpy()
+
+    def starters(sl: list[tuple[str, int | None]]) -> list[int]:
+        return [i for _, i in sl if i is not None]
+
+    swaps = []
+    current = win_probability(starters(slots), theirs, draws)
+    for _ in range(max_steps):
+        best = (current, None, None)
+        for k, (slot, out) in enumerate(slots):
+            for b in pool:
+                if pos[b] not in SLOT_ELIGIBLE.get(slot, {slot}):
+                    continue
+                trial = slots.copy()
+                trial[k] = (slot, b)
+                p = win_probability(starters(trial), theirs, draws)
+                if p > best[0] + 0.002:  # ignore simulation noise
+                    best = (p, k, b)
+        if best[1] is None:
+            break
+        current, k, b = best
+        slot, out = slots[k]
+        slots[k] = (slot, b)
+        pool.remove(b)
+        if out is not None:
+            pool.append(out)
+        swaps.append((slot, players.at[b, "name"], players.at[out, "name"] if out is not None else "(empty)"))
+    rows = [
+        {**players.loc[i].to_dict(), "slot": slot} if i is not None else {"slot": slot} for slot, i in slots
+    ]
+    return pd.DataFrame(rows), swaps, current
 
 
 def optimal_lineup(roster: pd.DataFrame, slots: list[str]) -> pd.DataFrame:
@@ -109,25 +217,36 @@ def optimal_lineup(roster: pd.DataFrame, slots: list[str]) -> pd.DataFrame:
     return lineup.sort_values(["slot", "proj"], ascending=[True, False])
 
 
-def close_calls(lineup: pd.DataFrame, bench: pd.DataFrame) -> pd.DataFrame:
-    """Bench players projected within 2 points of a starter whose slot they could fill."""
+def close_calls(
+    lineup: pd.DataFrame,
+    bench: pd.DataFrame,
+    theirs: list[int] | None = None,
+    draws: np.ndarray | None = None,
+) -> pd.DataFrame:
+    """Bench players projected within 2 points of a starter whose slot they could fill,
+    with the matchup win probability either way when draws are given."""
     rows = []
-    for s in lineup.dropna(subset=["sleeper_id"]).itertuples():
-        for b in bench.itertuples():
+    starters = [int(x) for x in lineup["_i"].dropna()] if "_i" in lineup else []
+    # iterrows, not itertuples: itertuples renames the "_i" column
+    for _, s in lineup.dropna(subset=["sleeper_id"]).iterrows():
+        for _, b in bench.iterrows():
             if (
-                b.position in SLOT_ELIGIBLE.get(s.slot, {s.slot})
-                and abs(s.proj - b.proj) <= CLOSE_CALL_POINTS
+                b["position"] in SLOT_ELIGIBLE.get(s["slot"], {s["slot"]})
+                and abs(s["proj"] - b["proj"]) <= CLOSE_CALL_POINTS
             ):
-                rows.append(
-                    {
-                        "slot": s.slot,
-                        "start": s.name,
-                        "start_proj": s.proj,
-                        "bench": b.name,
-                        "bench_proj": b.proj,
-                        "gap": round(s.proj - b.proj, 2),
-                    }
-                )
+                row = {
+                    "slot": s["slot"],
+                    "start": s["name"],
+                    "start_proj": s["proj"],
+                    "bench": b["name"],
+                    "bench_proj": b["proj"],
+                    "gap": round(s["proj"] - b["proj"], 2),
+                }
+                if draws is not None and theirs is not None and starters:
+                    swapped = [i for i in starters if i != int(s["_i"])] + [int(b["_i"])]
+                    row["win_as_is"] = round(win_probability(starters, theirs, draws), 3)
+                    row["win_if_swapped"] = round(win_probability(swapped, theirs, draws), 3)
+                rows.append(row)
     return pd.DataFrame(rows)
 
 
@@ -171,14 +290,23 @@ def discord_summary(
     calls: pd.DataFrame,
     waivers: pd.DataFrame,
     notes: list[str],
+    matchup: str | None = None,
+    swaps: list[tuple[str, str, str]] | None = None,
 ) -> str:
-    """Short text version of the lineup, close calls and top waiver targets."""
-    lines = [f"**{league_name} | {season} week {week}** (projected {lineup['proj'].sum():.1f})", "```"]
+    """Short text version of the matchup, lineup with ranges, close calls and waiver targets."""
+    lines = [f"**{league_name} | {season} week {week}** (projected {lineup['proj'].sum():.1f})"]
+    if matchup:
+        lines.append(matchup)
+    lines.append("```")
     for r in lineup.itertuples():
         flag = f"  [{r.flag}]" if isinstance(r.flag, str) and r.flag else ""
         name = r.name if isinstance(r.name, str) else "(empty)"
-        lines.append(f"{r.slot:<10} {name:<22} {r.proj:5.1f}{flag}")
+        rng = f"{r.p10:4.1f}-{r.p90:4.1f}" if pd.notna(getattr(r, "p10", None)) else ""
+        lines.append(f"{r.slot:<10} {name:<22} {r.proj:5.1f}  {rng}{flag}")
     lines.append("```")
+    if swaps:
+        lines.append("**To raise win probability**")
+        lines += [f"- {slot}: start {inn} over {out}" for slot, inn, out in swaps]
     if not calls.empty:
         lines.append("**Close calls**")
         lines += [
@@ -209,14 +337,48 @@ def run(league_id: str, user: str | None, week: int | None, discord: bool = Fals
     rostered = {p for r in rosters for p in (r.get("players") or [])}
 
     print(f"{lg.get('name')} | {season} week {week} | scoring from the league's settings")
-    players, notes = build_player_table(season, week, scoring)
+    players, notes, draws = build_player_table(season, week, scoring)
+    players["_i"] = np.arange(len(players))
     for note in notes:
         print(f"Note: {note}")
 
     roster = players[players["sleeper_id"].isin(mine.get("players") or [])]
     lineup = optimal_lineup(roster, slots)
     bench = roster[~roster["sleeper_id"].isin(lineup["sleeper_id"])].sort_values("proj", ascending=False)
-    calls = close_calls(lineup, bench)
+
+    # This week's opponent: their set starters, or their best-projection lineup if none are set
+    opp_name, theirs = None, []
+    names = {u["user_id"]: u.get("display_name") for u in users}
+    owners = {r["roster_id"]: names.get(r.get("owner_id")) for r in rosters}
+    ms = sleeper.matchups(league_id, week)
+    me = next((m for m in ms if m["roster_id"] == mine["roster_id"]), None)
+    opp = next(
+        (m for m in ms if me and m["matchup_id"] == me["matchup_id"] and m["roster_id"] != me["roster_id"]),
+        None,
+    )
+    if opp:
+        opp_name = owners.get(opp["roster_id"]) or f"roster {opp['roster_id']}"
+        ids = [p for p in (opp.get("starters") or []) if p and p != "0"]
+        if not ids:
+            opp_roster = players[players["sleeper_id"].isin(opp.get("players") or [])]
+            ids = list(optimal_lineup(opp_roster, slots)["sleeper_id"].dropna())
+        theirs = players.loc[players["sleeper_id"].isin(ids), "_i"].astype(int).tolist()
+
+    mine_ids = lineup["_i"].dropna().astype(int).tolist()
+    matchup = None
+    best_lineup, swaps = lineup, []
+    if opp_name:
+        win = win_probability(mine_ids, theirs, draws)
+        mt, ot = draws[mine_ids].sum(axis=0), draws[theirs].sum(axis=0)
+        matchup = (
+            f"vs {opp_name}: win probability {win:.0%} "
+            f"(you {np.median(mt):.0f}, range {np.quantile(mt, 0.1):.0f}-{np.quantile(mt, 0.9):.0f}; "
+            f"them {np.median(ot):.0f}, range {np.quantile(ot, 0.1):.0f}-{np.quantile(ot, 0.9):.0f})"
+        )
+        best_lineup, swaps, best_win = max_win_lineup(lineup, bench, theirs, draws, players)
+        if swaps:
+            matchup += f". Best win-probability lineup: {best_win:.0%}"
+    calls = close_calls(lineup, bench, theirs if opp_name else None, draws if opp_name else None)
     waivers = waiver_targets(players, rostered, lineup)
 
     cols = [
@@ -225,13 +387,19 @@ def run(league_id: str, user: str | None, week: int | None, discord: bool = Fals
         "sleeper_team",
         "opponent",
         "proj",
+        "p10",
+        "p90",
         "ours",
         "sleeper",
         "implied_points",
         "flag",
     ]
-    pd.set_option("display.width", 180)
-    print("\n=== Best lineup ===")
+    pd.set_option("display.width", 200)
+    if matchup:
+        print(f"\n=== Matchup ===\n{matchup}")
+        for slot, inn, out in swaps:
+            print(f"  {slot}: start {inn} over {out}")
+    print("\n=== Best lineup (by projection; p10-p90 is the 80% range) ===")
     print(lineup[["slot"] + cols].round(2).to_string(index=False))
     print(f"Projected total: {lineup['proj'].sum():.1f}")
     print("\n=== Bench ===")
@@ -245,6 +413,8 @@ def run(league_id: str, user: str | None, week: int | None, discord: bool = Fals
         "sleeper_team",
         "opponent",
         "proj",
+        "p10",
+        "p90",
         "upgrade",
         "target_share",
         "carry_share",
@@ -256,6 +426,8 @@ def run(league_id: str, user: str | None, week: int | None, discord: bool = Fals
     out = config.OUTPUT_DIR / "league" / f"{league_id}_{season}_w{week:02d}_{datetime.now():%Y%m%d_%H%M}"
     out.mkdir(parents=True, exist_ok=True)
     lineup.to_csv(out / "lineup.csv", index=False)
+    if swaps:
+        best_lineup.to_csv(out / "lineup_max_win.csv", index=False)
     bench.to_csv(out / "bench.csv", index=False)
     calls.to_csv(out / "close_calls.csv", index=False)
     waivers.to_csv(out / "waivers.csv", index=False)
@@ -265,4 +437,16 @@ def run(league_id: str, user: str | None, week: int | None, discord: bool = Fals
     if discord:
         from nfl_model import alerts
 
-        alerts.send(discord_summary(lg.get("name") or league_id, season, week, lineup, calls, waivers, notes))
+        alerts.send(
+            discord_summary(
+                lg.get("name") or league_id,
+                season,
+                week,
+                lineup,
+                calls,
+                waivers,
+                notes,
+                matchup=matchup,
+                swaps=swaps,
+            )
+        )

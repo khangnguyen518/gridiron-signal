@@ -23,6 +23,7 @@ player stats        = usage x efficiency shrunk toward the position average
 player TDs          = team TDs x red-zone share
 points              = the league's own scoring_settings applied to the stat line
 blend               = w x ours + (1 - w) x Sleeper, w per position
+range, win prob     = 1,000 simulated games per player, mixed with history (10th-90th percentile)
 ```
 
 ## Results (walk-forward, test seasons 2019-2025)
@@ -39,6 +40,7 @@ blend               = w x ours + (1 - w) x Sleeper, w per position
 - QB gains most: a backup QB now inherits the starter's volume. Our model alone beats Sleeper at QB (5.99 vs 6.07 on start-worthy QBs).
 - Close calls improved (54.7% vs 54.2%) but are still close to a coin flip.
 - Usage needs a short memory: a 2-game half-life beats 12 games by almost 0.09 points of MAE.
+- Each player's 80% range holds 79.7% of outcomes (2019-2025). Mixing the game simulation with history beats either alone, and the simulation's correlations drive matchup win probability.
 
 Full method and findings: [docs/backtest.md](docs/backtest.md).
 
@@ -84,10 +86,9 @@ uv run pytest
 - Usage is only as fresh as sports_db's last load. The CLI warns when it lags.
 - Injuries: Out, IR, suspended and bye players are zeroed and their usage goes to teammates (Doubtful also counts as out for teammates). Questionable players are not discounted.
 - Rookies before their first game, kickers and defenses use Sleeper's projection.
-- Expected points only; no score distributions yet.
+- Kicker and defense ranges are assumed, not backtested. QB ranges cover 77% instead of 80%.
 
 ## Next steps
 
 1. Discount Questionable players; model who specifically replaces an absent starter
-2. Game simulation for score distributions, then lineups that maximize win probability
-3. Line-movement features from the recorded Kalshi history (recording since 2026-10-22)
+2. Line-movement features from the recorded Kalshi history (recording since 2026-10-22)

@@ -76,7 +76,8 @@ the next hour's run tries again. Missed hours cannot be filled in later.
 
 ## Memory
 The refresh is dbt only; BigQuery does the work. `nflm league --refresh` loads about 90k player
-games into pandas, a few hundred MB, at times when no other job runs. If the kernel kills it
+games into pandas and simulates 1,000 games per player: about 540 MB on the VM before the
+simulation, about 145 MB more with it (measured on a laptop), at times when no other job runs. If the kernel kills it
 (`dmesg`), move the lineup post to a laptop or the VM to e2-small.
 
 ## Cost
