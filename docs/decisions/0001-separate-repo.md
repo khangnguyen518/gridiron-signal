@@ -9,7 +9,7 @@ product tables until reviewed, a decision record for each change. Modeling needs
 Sleeper projections and fast iteration.
 
 ## Decision
-- Models live in `~/projects/nfl-model`, with their own BigQuery dataset (`nflm_dev`).
+- Models live in `~/projects/gridiron-signal` (GitHub `khangnguyen518/gridiron-signal`), with their own BigQuery dataset (`nflm_dev`).
 - sports_db staging and the draft helper's marts are read only. Nothing here writes to them.
 
 ## Why

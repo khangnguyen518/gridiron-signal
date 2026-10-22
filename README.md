@@ -1,8 +1,10 @@
-# nfl-model
+# gridiron-signal
 
 Weekly fantasy projections built top-down from betting lines and player usage,
 blended with Sleeper's projections, plus a Sleeper league tool for start/sit and
 waiver decisions.
+
+The Python package is `nfl_model` and the command is `nflm`.
 
 Reads from two sibling projects and never writes to them:
 - **sports_db**: nflverse stats, play-by-play, schedules and closing lines (BigQuery `dev_staging`)

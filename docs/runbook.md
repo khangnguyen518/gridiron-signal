@@ -11,12 +11,12 @@
    The other staging models this repo reads are views over raw and update by themselves.
 2. **Rebuild this repo's tables:**
    ```bash
-   cd ~/projects/nfl-model/dbt && set -a && source ../.env && set +a && uv run dbt build --profiles-dir .
+   cd ~/projects/gridiron-signal/dbt && set -a && source ../.env && set +a && uv run dbt build --profiles-dir .
    ```
    Expect every test to pass, or the `lines_before_kickoff` warning described in `docs/data.md`.
 3. **Run the league tool with fresh data:**
    ```bash
-   cd ~/projects/nfl-model && uv run nflm league --refresh
+   cd ~/projects/gridiron-signal && uv run nflm league --refresh
    ```
    The "Stats end at week N" note should be gone.
 

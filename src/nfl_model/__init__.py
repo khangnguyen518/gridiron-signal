@@ -1,2 +1,1 @@
-def hello() -> str:
-    return "Hello from nfl-model!"
+"""gridiron-signal: NFL fantasy projections from betting lines and usage."""
