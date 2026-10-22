@@ -34,6 +34,10 @@ A change that breaks a decision needs a new record first.
 - `src/nfl_model/lines.py`    Kalshi ladders to spread and total
 - `src/nfl_model/sleeper.py`  Sleeper API
 - `src/nfl_model/scoring.py`  league scoring
+- `src/nfl_model/refresh.py`  scheduled refresh: sports_db freshness check, dbt build
+- `src/nfl_model/alerts.py`   Discord alerts and lineup posts
+- `model/model_card.json`     the live model (written by backtest, committed to deploy)
+- `deploy/`                   VM setup scripts, crontab, VM runbook (0010)
 - `tests/`                    pytest
 - `docs/`                     architecture, data, model, backtest, league tool, runbook, decisions
 
@@ -41,7 +45,8 @@ A change that breaks a decision needs a new record first.
 - Install: `uv sync`
 - dbt: `cd dbt && set -a && source ../.env && set +a && uv run dbt build --profiles-dir .`
 - Backtest: `uv run nflm backtest` (add `--skip-tune` to reuse the last tuned params, `--refresh` to re-read BigQuery)
-- League: `uv run nflm league [--week N] [--user NAME] [--league-id ID] [--refresh]`
+- League: `uv run nflm league [--week N] [--user NAME] [--league-id ID] [--refresh] [--discord]`
+- Refresh (cron on the VM): `uv run nflm refresh [--force]`
 - Test: `uv run pytest`
 - Lint and format: `uv run ruff check src tests --fix && uv run ruff format src tests`
 
@@ -70,6 +75,12 @@ A change that breaks a decision needs a new record first.
 ## Git
 - Conventional Commits: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`.
 - Generated outputs stay in `output/` and `data/cache/`, both gitignored.
+- `model/model_card.json` is committed on purpose: committing it deploys a new model to the VM.
+
+## Environments (0010)
+- Laptops: dbt target `dev`, dataset `nflm_dev`, reading sports_db `dev_staging`.
+- The VM: target `prod`, dataset `nflm`, reading sports_db `staging`. Never build `prod` from a laptop
+  except to test a deploy change.
 
 ## How to work
 - Before editing, list the plan in 3 to 5 bullets and the files you will touch.

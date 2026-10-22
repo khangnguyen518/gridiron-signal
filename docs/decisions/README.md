@@ -20,6 +20,7 @@ A new decision gets the next number. A changed decision gets a new record that m
 | 0007 | Project stat lines, score with each league's settings | Accepted |
 | 0008 | Late-stored lines warn instead of failing | Accepted |
 | 0009 | Renormalize usage shares by who is expected to play | Accepted |
+| 0010 | Refresh on the shared loader VM, after sports_db | Accepted |
 
 ## Template
 ```

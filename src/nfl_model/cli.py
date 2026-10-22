@@ -1,7 +1,8 @@
 """Command line entry point.
 
 uv run nflm backtest [--refresh]
-uv run nflm league [--league-id ID] [--user NAME] [--week N]
+uv run nflm league [--league-id ID] [--user NAME] [--week N] [--refresh] [--discord]
+uv run nflm refresh [--force]
 """
 
 import argparse
@@ -20,6 +21,10 @@ def main() -> None:
     lg.add_argument("--user", help="your Sleeper display name (default SLEEPER_USERNAME in .env)")
     lg.add_argument("--week", type=int, help="NFL week (default: Sleeper's current week)")
     lg.add_argument("--refresh", action="store_true", help="re-read BigQuery instead of the cache")
+    lg.add_argument("--discord", action="store_true", help="also post a summary to the alert webhook")
+
+    rf = sub.add_parser("refresh", help="check sports_db freshness, then dbt build (for cron)")
+    rf.add_argument("--force", action="store_true", help="build even if sports_db did not build recently")
 
     args = parser.parse_args()
     if args.command == "backtest":
@@ -36,7 +41,13 @@ def main() -> None:
         league_id = args.league_id or config.SLEEPER_LEAGUE_ID
         if not league_id:
             raise SystemExit("Pass --league-id or set SLEEPER_LEAGUE_ID in .env")
-        league.run(league_id, args.user or config.SLEEPER_USERNAME, args.week)
+        league.run(league_id, args.user or config.SLEEPER_USERNAME, args.week, discord=args.discord)
+    elif args.command == "refresh":
+        import sys
+
+        from nfl_model import refresh
+
+        sys.exit(refresh.main(force=args.force))
 
 
 if __name__ == "__main__":

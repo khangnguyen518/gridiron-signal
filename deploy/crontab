@@ -1,0 +1,16 @@
+# Installed by deploy/setup_vm.sh, which runs: crontab deploy/crontab
+# Times are UTC, like every job on the shared VM (sports_db decision 0016).
+# Each line runs under flock, so a second copy exits if the first is still running.
+SHELL=/bin/bash
+PATH=/home/gridiron/.local/bin:/usr/local/bin:/usr/bin:/bin
+REPO=/home/gridiron/gridiron-signal
+
+# Daily refresh after sports_db's 09:20 UTC pipeline (about 18 minutes; the Tuesday weekly job starts
+# 10:40). Skips and alerts if sports_db did not build in the last 30 hours.
+15 10 * * * cd $REPO && flock -n /tmp/gridiron_refresh.lock uv run nflm refresh >> logs/refresh.log 2>&1
+
+# Lineup, close calls and waiver targets to Discord before kickoff, with live Kalshi lines and
+# Sleeper injury statuses. Sunday 15:30 UTC is 11:30 ET during daylight time and 10:30 ET after.
+# Thursday 21:00 UTC is before the Thursday game.
+30 15 * * 0 cd $REPO && flock -n /tmp/gridiron_league.lock uv run nflm league --refresh --discord >> logs/league.log 2>&1
+0 21 * * 4 cd $REPO && flock -n /tmp/gridiron_league.lock uv run nflm league --refresh --discord >> logs/league.log 2>&1

@@ -372,7 +372,10 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
     (out_dir / "params.json").write_text(
         json.dumps({**asdict(params), "hl_share_points_share": hl_share_baseline}, indent=2)
     )
-    (out_dir / "model_card.json").write_text(json.dumps(model_card(params, variants), indent=2))
+    card = json.dumps(model_card(params, variants), indent=2)
+    (out_dir / "model_card.json").write_text(card)
+    config.MODEL_CARD.parent.mkdir(exist_ok=True)
+    config.MODEL_CARD.write_text(card + "\n")
 
     pd.set_option("display.width", 180)
     cols = ["variant", "model", "n", "mae", "bias", "rank_corr", "close_call_acc"]
@@ -403,4 +406,4 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
         .round(3)
         .to_string()
     )
-    print(f"\nWrote {out_dir}")
+    print(f"\nWrote {out_dir} and {config.MODEL_CARD.relative_to(config.ROOT)} (commit it to deploy)")

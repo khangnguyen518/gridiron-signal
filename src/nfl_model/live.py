@@ -52,9 +52,12 @@ ZERO_COLS = [
 
 
 def load_model_card() -> dict:
+    """The committed model card, else the newest backtest run's."""
+    if config.MODEL_CARD.exists():
+        return json.loads(config.MODEL_CARD.read_text())
     run = latest_run_dir()
     if run is None:
-        raise SystemExit("No backtest found. Run `uv run nflm backtest` first.")
+        raise SystemExit("No model card. Run `uv run nflm backtest` first.")
     return json.loads((run / "model_card.json").read_text())
 
 

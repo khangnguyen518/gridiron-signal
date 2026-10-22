@@ -163,7 +163,40 @@ def find_roster(rosters: list[dict], users: list[dict], user: str | None) -> dic
     raise SystemExit(f"Pick your team with --user (or SLEEPER_USERNAME in .env). Teams: {teams}")
 
 
-def run(league_id: str, user: str | None, week: int | None) -> None:
+def discord_summary(
+    league_name: str,
+    season: int,
+    week: int,
+    lineup: pd.DataFrame,
+    calls: pd.DataFrame,
+    waivers: pd.DataFrame,
+    notes: list[str],
+) -> str:
+    """Short text version of the lineup, close calls and top waiver targets."""
+    lines = [f"**{league_name} | {season} week {week}** (projected {lineup['proj'].sum():.1f})", "```"]
+    for r in lineup.itertuples():
+        flag = f"  [{r.flag}]" if isinstance(r.flag, str) and r.flag else ""
+        name = r.name if isinstance(r.name, str) else "(empty)"
+        lines.append(f"{r.slot:<10} {name:<22} {r.proj:5.1f}{flag}")
+    lines.append("```")
+    if not calls.empty:
+        lines.append("**Close calls**")
+        lines += [
+            f"- {c.slot}: {c.start} {c.start_proj:.1f} vs {c.bench} {c.bench_proj:.1f}"
+            for c in calls.itertuples()
+        ]
+    top = waivers[waivers["upgrade"] > 0].head(5)
+    if not top.empty:
+        lines.append("**Waiver upgrades**")
+        lines += [
+            f"- {w.name} ({w.position}, {w.sleeper_team}) {w.proj:.1f}, +{w.upgrade:.1f}"
+            for w in top.itertuples()
+        ]
+    lines += [f"_{n}_" for n in notes]
+    return "\n".join(lines)
+
+
+def run(league_id: str, user: str | None, week: int | None, discord: bool = False) -> None:
     lg = sleeper.league(league_id)
     st = sleeper.state()
     season = int(lg.get("season") or st["season"])
@@ -228,3 +261,8 @@ def run(league_id: str, user: str | None, week: int | None) -> None:
     waivers.to_csv(out / "waivers.csv", index=False)
     players.to_csv(out / "all_projections.csv", index=False)
     print(f"\nWrote {out}")
+
+    if discord:
+        from nfl_model import alerts
+
+        alerts.send(discord_summary(lg.get("name") or league_id, season, week, lineup, calls, waivers, notes))

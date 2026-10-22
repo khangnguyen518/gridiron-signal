@@ -43,13 +43,22 @@ sports_db (BigQuery, read only)         draft helper (BigQuery, read only)
 | Tables | `dbt/` -> BigQuery `nflm_dev` | joins, red-zone counts, crosswalk | `dbt build` |
 | Cache | `data/cache/*.parquet` | local copies of the dbt tables, Sleeper players | first read, or `--refresh` |
 | Features and models | `src/nfl_model/` | everything time-weighted or fit | every run, in memory |
-| Model card | `output/backtests/<run>/model_card.json` | tuned params, blend weights | `nflm backtest` |
+| Model card | `model/model_card.json` (committed) and `output/backtests/<run>/` | tuned params, blend weights, availability settings | `nflm backtest` |
 | Live | `live.py`, `league.py` | one week's projections and advice | `nflm league` |
 
 The split between dbt and Python is decision 0003: dbt does set-based joins once, and
 Python does the recency weighting, which the tuning loop recomputes hundreds of times.
 
-## Two entry points
+## Where it runs
+
+| Where | Target and dataset | Reads sports_db | Runs |
+|---|---|---|---|
+| Laptop | `dev`, `nflm_dev` | `dev_staging` | everything, by hand |
+| `sports-vm` | `prod`, `nflm` | `staging` | `nflm refresh` daily, `nflm league --discord` Sun and Thu |
+
+See `deploy/README.md` and decision 0010.
+
+## Entry points
 
 **`nflm backtest`**
 1. Load the cached tables and compute actual fantasy points from stat lines.
@@ -88,7 +97,9 @@ dbt reads the same variables through `env_var()` in `dbt/profiles.yml` and `dbt/
 | Variable | Default | Meaning |
 |---|---|---|
 | `NFLM_GCP_PROJECT` | `gen-lang-client-0525946386` | project this repo writes to |
-| `NFLM_DATASET` | `nflm_dev` | dataset this repo writes to |
+| `NFLM_DATASET` | `nflm_dev` | dataset this repo writes to (`nflm` on the VM) |
+| `NFLM_DBT_TARGET` | `dev` | dbt target for `nflm refresh` (`prod` on the VM) |
+| `NFLM_ALERT_WEBHOOK_URL` / `NFLM_ALERT_SECRET` | none | Discord webhook, or the Secret Manager version holding it |
 | `SPORTS_DB_PROJECT` | `sports-db-209650` | sports_db project |
 | `SPORTS_DB_STAGING` | `dev_staging` | sports_db staging dataset to read |
 | `FF_PROJECT` / `FF_MARTS` | `gen-lang-client-0525946386` / `ff_marts` | draft helper marts |

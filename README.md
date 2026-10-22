@@ -58,6 +58,7 @@ uv run nflm backtest          # writes the model card the league tool needs
 uv run nflm league                # this week's lineup, close calls, waiver targets
 uv run nflm league --week 8 --user "display name"
 uv run nflm league --refresh      # re-read BigQuery after new stats load
+uv run nflm refresh               # check sports_db is fresh, then dbt build (cron on the VM)
 uv run nflm backtest              # tune, walk-forward test, write output/backtests/<timestamp>/
 uv run nflm backtest --skip-tune  # reuse the last tuned params
 uv run pytest
@@ -74,6 +75,7 @@ uv run pytest
 | [docs/backtest.md](docs/backtest.md) | method, results by position and season, tuning findings |
 | [docs/league-tool.md](docs/league-tool.md) | `nflm league` usage, output, rules, Kalshi lines |
 | [docs/runbook.md](docs/runbook.md) | weekly refresh, retuning, troubleshooting |
+| [deploy/README.md](deploy/README.md) | daily refresh and Discord lineup posts on the shared VM |
 | [docs/decisions/](docs/decisions/README.md) | why each design choice was made |
 
 ## Known limits

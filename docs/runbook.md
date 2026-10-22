@@ -1,6 +1,12 @@
 # Runbook
 
-## Weekly refresh (before setting a lineup)
+## Automatic refresh
+
+On the VM, `nflm refresh` rebuilds the prod tables at 10:15 UTC after sports_db's daily load, and
+`nflm league --discord` posts your lineup on Sunday and Thursday. Setup and VM commands are in
+`deploy/README.md`. The steps below are for a laptop.
+
+## Weekly refresh on a laptop (before setting a lineup)
 
 1. **Load new games into sports_db** (writes sports_db raw, builds its dev staging):
    ```bash
@@ -28,13 +34,16 @@ uv run nflm backtest --skip-tune  # reuse the last tuned params, refit weights o
 ```
 
 Compare `output/backtests/<new>/summary.csv` with `docs/backtest.md` and update that doc.
-The newest run with a `model_card.json` becomes the live model.
+The backtest also writes `model/model_card.json`, which live projections read. Commit it to make
+the new model live, including on the VM after its next pull.
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| "No backtest found" | no `model_card.json` in `output/backtests/` | `uv run nflm backtest` |
+| "No model card" | no `model/model_card.json` and no backtest run | `uv run nflm backtest` |
+| Discord: "Skipped dbt build" | sports_db had no successful prod build in 30 hours | check sports_db's `logs/daily.log` on the VM and `raw_meta.load_runs` |
+| Discord: "dbt build ... failed" | a model or test failed | `logs/refresh.log` on the VM |
 | "Pick your team with --user" | no user given or name not found | use a display name from the printed list |
 | "Stats end at week N" | sports_db not loaded recently | weekly refresh steps 1-3 |
 | "Kalshi lines unavailable" | Kalshi API error | nothing; nflverse lines are used |

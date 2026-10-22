@@ -1,0 +1,105 @@
+{
+  "params": {
+    "hl_share": 2.0,
+    "hl_eff": 3.0,
+    "hl_team": 8.0,
+    "k_mult": 0.5
+  },
+  "live_variant": "midweek",
+  "renorm": {
+    "beta_target": 0.5,
+    "beta_carry": 0.75,
+    "beta_att": 0.75
+  },
+  "center": {
+    "target_share": {
+      "RB": 1.121922798077178,
+      "TE": 1.1437984954119382,
+      "WR": 1.0908238059309094
+    },
+    "carry_share": {
+      "RB": 1.0764151080636137
+    },
+    "att_share": 0.9883085338052774
+  },
+  "positions": {
+    "QB": {
+      "w": 0.6
+    },
+    "RB": {
+      "w": 0.15
+    },
+    "TE": {
+      "w": 0.4
+    },
+    "WR": {
+      "w": 0.35
+    }
+  },
+  "variants": {
+    "lock": {
+      "renorm": {
+        "beta_target": 0.5,
+        "beta_carry": 0.5,
+        "beta_att": 0.75
+      },
+      "center": {
+        "target_share": {
+          "RB": 1.133589636842001,
+          "TE": 1.1482667578188555,
+          "WR": 1.1002189016082018
+        },
+        "carry_share": {
+          "RB": 1.0826633172180808
+        },
+        "att_share": 0.9883655055857636
+      },
+      "positions": {
+        "QB": {
+          "w": 0.65
+        },
+        "RB": {
+          "w": 0.1
+        },
+        "TE": {
+          "w": 0.4
+        },
+        "WR": {
+          "w": 0.3
+        }
+      }
+    },
+    "midweek": {
+      "renorm": {
+        "beta_target": 0.5,
+        "beta_carry": 0.75,
+        "beta_att": 0.75
+      },
+      "center": {
+        "target_share": {
+          "RB": 1.121922798077178,
+          "TE": 1.1437984954119382,
+          "WR": 1.0908238059309094
+        },
+        "carry_share": {
+          "RB": 1.0764151080636137
+        },
+        "att_share": 0.9883085338052774
+      },
+      "positions": {
+        "QB": {
+          "w": 0.6
+        },
+        "RB": {
+          "w": 0.15
+        },
+        "TE": {
+          "w": 0.4
+        },
+        "WR": {
+          "w": 0.35
+        }
+      }
+    }
+  }
+}

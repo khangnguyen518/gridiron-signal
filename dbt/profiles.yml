@@ -13,3 +13,14 @@ nfl_model:
       priority: interactive
       job_execution_timeout_seconds: 600
       maximum_bytes_billed: 10000000000   # 10 GB per query
+    prod:
+      # Built by `nflm refresh` on the loader VM. Laptops use dev.
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('NFLM_GCP_PROJECT', 'gen-lang-client-0525946386') }}"
+      dataset: "{{ env_var('NFLM_DATASET', 'nflm') }}"
+      location: US
+      threads: 2
+      priority: interactive
+      job_execution_timeout_seconds: 1200
+      maximum_bytes_billed: 10000000000   # 10 GB per query
