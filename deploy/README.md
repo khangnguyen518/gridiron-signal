@@ -30,7 +30,7 @@ Any dbt failure also posts. Backtests stay on a laptop: tuning needs more memory
 bash deploy/setup_gcp.sh
 ```
 Safe to rerun. In gen-lang-client-0525946386 the VM's account gets BigQuery job user, `dataEditor`
-on the prod dataset `nflm` (created here), `dataViewer` on `ff_marts`, and the custom role
+on the prod dataset `nflm` (created here), `dataViewer` on `ff_marts` and `ff_raw` (the marts are views over raw), and the custom role
 `rawAppender` (append, never delete) on `nflm_raw`. Nothing changes in
 sports-db-209650: the account can already read `staging`, `raw_nfl`, `raw_meta` and the alert secret.
 

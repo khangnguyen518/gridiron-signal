@@ -28,7 +28,8 @@ VM `sports-vm` (sports_db decision 0016) and builds its prod layer, `staging`.
 - A committed model card makes deploying a model an explicit commit.
 
 ## Consequences
-- The VM account gets BigQuery job user and `dataEditor` on `nflm`, and `dataViewer` on `ff_marts`,
+- The VM account gets BigQuery job user and `dataEditor` on `nflm`, and `dataViewer` on `ff_marts`
+  and `ff_raw` (the draft helper's marts are views over its raw tables),
   in gen-lang-client-0525946386. It already has `roles/editor` in the NBA project (sports_db 0016),
   so keep only trusted code on the VM.
 - Four workloads share 1 GB of RAM. The lineup post loads a few hundred MB; it runs when nothing else does.

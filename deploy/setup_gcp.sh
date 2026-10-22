@@ -7,7 +7,8 @@
 # project it gets only:
 #   - BigQuery job user on the project (dbt and Python run their jobs here)
 #   - dataEditor on the prod dataset nflm (created here first)
-#   - dataViewer on ff_marts (the draft helper's Sleeper projections, read only)
+#   - dataViewer on ff_marts and ff_raw (the draft helper's Sleeper projections, read only;
+#     ff_marts holds views over ff_raw, so querying them needs both)
 #   - custom role rawAppender (append, never delete) on nflm_raw, where Kalshi lines are recorded
 # sports_db already lets the account read its staging, raw_nfl and raw_meta datasets, and read the
 # alert-discord-webhook secret, so nothing changes in sports-db-209650.
@@ -38,8 +39,9 @@ step "Prod dataset $DATASET"
 bq --location=US show "$PROJECT:$DATASET" >/dev/null 2>&1 || bq --location=US mk --dataset "$PROJECT:$DATASET"
 grant roles/bigquery.dataEditor "$DATASET"
 
-step "Read only: ff_marts"
+step "Read only: ff_marts and ff_raw (ff_marts views query ff_raw)"
 grant roles/bigquery.dataViewer ff_marts
+grant roles/bigquery.dataViewer ff_raw
 
 step "Raw dataset $RAW_DATASET: append only"
 # Same permissions as sports_db's rawAppender: load jobs can create and append, never delete.
