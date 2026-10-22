@@ -24,6 +24,7 @@ from nfl_model.availability import Renorm, add_roster_rows, add_team_usual, cent
 from nfl_model.features import Params, add_player_features, add_team_features, season_priors
 from nfl_model.model import fit_volume_models, predict_volume, project
 from nfl_model.scoring import fantasy_points
+from nfl_model.significance import close_call_gap, mae_gap
 
 TUNE_SEASONS = range(2012, 2018)
 BLEND_START = 2018
@@ -193,19 +194,25 @@ def pick_blend_weight(train: pd.DataFrame, model_col: str) -> float:
     return float(BLEND_WEIGHTS[int(np.argmin(maes))])
 
 
-def close_call_accuracy(df: pd.DataFrame, col: str) -> tuple[float, int]:
-    """Among same-position, same-week pairs Sleeper projects within 2 points of each
-    other, how often the player `col` ranks higher actually scored more."""
-    wins, total = 0, 0
-    for _, grp in df.groupby(["season", "week", "position"]):
+def close_call_counts(df: pd.DataFrame, col: str) -> pd.DataFrame:
+    """Per position-week: pairs Sleeper projects within 2 points of each other (`pairs`),
+    and how many of them the player `col` ranks higher actually scored more (`wins`)."""
+    rows = []
+    for (season, week, position), grp in df.groupby(["season", "week", "position"]):
         s = grp["sleeper_projected_points"].to_numpy()
         m = grp[col].to_numpy()
         a = grp["fantasy_points"].to_numpy()
         i, j = np.triu_indices(len(grp), k=1)
         close = (np.abs(s[i] - s[j]) <= CLOSE_CALL_POINTS) & (a[i] != a[j]) & (m[i] != m[j])
         i, j = i[close], j[close]
-        wins += int(np.sum((m[i] > m[j]) == (a[i] > a[j])))
-        total += len(i)
+        rows.append((season, week, position, int(np.sum((m[i] > m[j]) == (a[i] > a[j]))), len(i)))
+    return pd.DataFrame(rows, columns=["season", "week", "position", "wins", "pairs"])
+
+
+def close_call_accuracy(df: pd.DataFrame, col: str) -> tuple[float, int]:
+    """Share of close pairs (see `close_call_counts`) that `col` orders correctly."""
+    counts = close_call_counts(df, col)
+    wins, total = int(counts["wins"].sum()), int(counts["pairs"].sum())
     return (wins / total if total else float("nan")), total
 
 
@@ -276,6 +283,55 @@ def summarize(scored: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+# Pairs compared within each variant, then the live variant against the others on the same rows
+COMPARISONS = [
+    ("blend_opportunity", "sleeper"),
+    ("opportunity", "sleeper"),
+    ("blend_opportunity", "blend_share"),
+]
+VARIANT_MODELS = ["opportunity", "blend_opportunity"]
+
+
+def _gaps(frame: pd.DataFrame, a: str, b: str, labels: dict) -> list[dict]:
+    """MAE gap (all and relevant rows) and close-call gap (relevant rows) of `a` vs `b`,
+    for all positions and each position, plus the all-rows MAE gap per season."""
+    rows = []
+    for subset_name, subset in [
+        ("all", frame),
+        ("relevant", frame[frame["sleeper_projected_points"] >= RELEVANT_POINTS]),
+    ]:
+        for position in ["ALL"] + config.POSITIONS:
+            sub = subset if position == "ALL" else subset[subset["position"] == position]
+            key = {**labels, "rows": subset_name, "position": position, "season": "all"}
+            rows.append({**key, "metric": "mae", **mae_gap(sub, a, b)})
+            if subset_name == "relevant":
+                gap = close_call_gap(close_call_counts(sub, a), close_call_counts(sub, b))
+                rows.append({**key, "metric": "close_call_acc", **gap})
+    for season, sub in frame.groupby("season"):
+        key = {**labels, "rows": "all", "position": "ALL", "season": str(season)}
+        rows.append({**key, "metric": "mae", **mae_gap(sub, a, b)})
+    return rows
+
+
+def significance(scored: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Week-clustered bootstrap intervals on the gap between models (within each variant)
+    and between the live variant and the others (same model, same rows)."""
+    rows = []
+    for variant, frame in scored.items():
+        for a, b in COMPARISONS:
+            rows += _gaps(frame, MODELS[a], MODELS[b], {"variant": variant, "a": a, "b": b})
+    keys = ["game_id", "gsis_id", "season", "week", "position", "fantasy_points", "sleeper_projected_points"]
+    cols = [MODELS[m] for m in VARIANT_MODELS]
+    for other in [v for v in scored if v != LIVE_VARIANT]:
+        both = scored[LIVE_VARIANT][keys + cols].merge(
+            scored[other][["game_id", "gsis_id"] + cols], on=["game_id", "gsis_id"], suffixes=("_a", "_b")
+        )
+        for model in VARIANT_MODELS:
+            labels = {"variant": f"{LIVE_VARIANT} vs {other}", "a": model, "b": model}
+            rows += _gaps(both, f"{MODELS[model]}_a", f"{MODELS[model]}_b", labels)
+    return pd.DataFrame(rows)
+
+
 def blend_weights(proj: pd.DataFrame) -> dict[str, dict[str, float]]:
     """Per-position blend weight fit on every season with Sleeper projections (2018 onward)."""
     df = proj.dropna(subset=["sleeper_projected_points"])
@@ -339,10 +395,11 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
         variants[name] = {"renorm": asdict(renorm), "center": center}
         print(f"  best {renorm}")
 
-    summaries, absence, weights_all, by_season_all = [], [], [], []
+    summaries, absence, weights_all, by_season_all, scored_all = [], [], [], [], {}
     for name, proj in projections.items():
         proj["share_points"] = share_points.loc[list(zip(proj["game_id"], proj["gsis_id"]))].to_numpy()
         weights, scored = evaluate(proj)
+        scored_all[name] = scored
         summaries.append(summarize(scored).assign(variant=name))
         absence.append(summarize(scored[scored["key_absence"]]).assign(variant=name))
         weights_all.append(weights.assign(variant=name))
@@ -360,6 +417,8 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
     absence_summary = pd.concat(absence, ignore_index=True)
     weights = pd.concat(weights_all, ignore_index=True)
     by_season = pd.concat(by_season_all)
+    print("Bootstrapping intervals by week...")
+    sig = significance(scored_all)
 
     out_dir = config.OUTPUT_DIR / "backtests" / datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -369,6 +428,7 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
     summary.to_csv(out_dir / "summary.csv", index=False)
     absence_summary.to_csv(out_dir / "summary_key_absence.csv", index=False)
     by_season.to_csv(out_dir / "mae_by_season.csv")
+    sig.to_csv(out_dir / "significance.csv", index=False)
     (out_dir / "params.json").write_text(
         json.dumps({**asdict(params), "hl_share_points_share": hl_share_baseline}, indent=2)
     )
@@ -406,4 +466,11 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
         .round(3)
         .to_string()
     )
+    sig_cols = ["variant", "a", "b", "rows", "metric", "estimate", "lo", "hi", "p"]
+    headline = (sig["position"] == "ALL") & (sig["season"] == "all")
+    headline &= sig["variant"].str.startswith(LIVE_VARIANT)
+    print(
+        "\n=== Gap a - b with 95% week-bootstrap interval (MAE: negative favors a; close calls: positive) ==="
+    )
+    print(sig[headline][sig_cols].round(4).to_string(index=False))
     print(f"\nWrote {out_dir} and {config.MODEL_CARD.relative_to(config.ROOT)} (commit it to deploy)")

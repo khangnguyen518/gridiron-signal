@@ -30,6 +30,7 @@ sports_db (BigQuery, read only)         draft helper (BigQuery, read only)
               availability.py  placeholder rows, share renormalization by who plays
               model.py      team volume models, two projections
               backtest.py   tune -> walk-forward test -> model_card.json
+              significance.py  week-clustered bootstrap intervals on model gaps
                            │
                            ▼
               live.py       next week's projections   <── Kalshi lines (lines.py)

@@ -1,7 +1,8 @@
 # Backtest
 
 Method, results and findings for the run behind the current model card
-(`output/backtests/20261021_210351/`). Rerun with `uv run nflm backtest`.
+(`output/backtests/20261021_224714/`, the same model as `20261021_210351` rerun with
+`--skip-tune` to add intervals). Rerun with `uv run nflm backtest`.
 
 ## Method
 
@@ -36,6 +37,12 @@ Rows scored: player games where the player played and Sleeper had a projection (
 - **Fresh key absence**: players whose team is missing someone who played the team's previous
   game and holds at least 15% of targets, 30% of carries or 50% of attempts (lock flags, so the
   same 4,942 relevant rows for `none` and `lock`).
+- **Intervals** (`significance.py`): every comparison is a gap between two projections on the
+  same rows (MAE of a minus MAE of b; close-call accuracy of a minus b). The 95% interval and
+  p-value come from a paired bootstrap that resamples whole weeks (124 test weeks, 2,000
+  resamples, fixed seed). Weeks, not rows, because players in the same week share game
+  outcomes: treating 35,000 rows as independent makes almost any gap look real. The p-value is
+  twice the share of resamples on the far side of zero, so `0.000` means under 1 in 2,000.
 
 ## Results, 2019-2025 (midweek, the live model)
 
@@ -86,22 +93,73 @@ Rows scored: player games where the player played and Sleeper had a projection (
 | 2024 | 4.397 | 4.582 | 4.407 | no |
 | 2025 | 4.337 | 4.427 | 4.308 | yes |
 
+### Is it noise? Week-bootstrap intervals
+
+Gap = a minus b. For MAE, negative favors a; for close calls, positive favors a.
+
+| a vs b | Rows | Metric | Gap | 95% interval | p |
+|---|---|---|---|---|---|
+| Blend vs Sleeper | all | MAE | -0.034 | -0.047 to -0.023 | <0.001 |
+| Blend vs Sleeper | relevant | MAE | -0.058 | -0.075 to -0.043 | <0.001 |
+| Blend vs Sleeper | relevant | close calls | +0.48 pts | +0.13 to +0.84 | 0.006 |
+| Opportunity vs Sleeper | all | MAE | +0.103 | +0.076 to +0.130 | <0.001 |
+| Opportunity vs Sleeper | relevant | MAE | +0.020 | -0.015 to +0.055 | 0.25 |
+| Blend vs points-share blend | all | MAE | -0.014 | -0.022 to -0.004 | 0.005 |
+| Blend vs points-share blend | relevant | close calls | +0.17 pts | -0.18 to +0.52 | 0.33 |
+| Midweek vs none, opportunity | all | MAE | -0.064 | -0.073 to -0.054 | <0.001 |
+| Midweek vs none, blend | all | MAE | -0.010 | -0.014 to -0.006 | <0.001 |
+| Midweek vs none, blend | relevant | close calls | +0.26 pts | +0.09 to +0.45 | 0.002 |
+| Midweek vs lock, blend | all | MAE | -0.003 | -0.005 to -0.002 | <0.001 |
+| Midweek vs lock, blend | relevant | close calls | -0.07 pts | -0.19 to +0.04 | 0.18 |
+
+**Blend vs Sleeper by position** (relevant rows):
+
+| Position | MAE gap | 95% interval | Close-call gap | 95% interval |
+|---|---|---|---|---|
+| QB | -0.152 | -0.234 to -0.079 | +0.84 pts | -0.41 to +2.05 |
+| RB | -0.020 | -0.030 to -0.010 | +0.78 pts | +0.31 to +1.22 |
+| WR | -0.052 | -0.071 to -0.034 | +0.34 pts | -0.13 to +0.83 |
+| TE | -0.045 | -0.067 to -0.023 | +0.38 pts | -0.44 to +1.23 |
+
+Our model alone vs Sleeper at QB, relevant rows: -0.084 MAE, interval -0.186 to +0.006, p = 0.07.
+
+**Blend vs Sleeper by season** (all rows):
+
+| Season | Gap | 95% interval | p |
+|---|---|---|---|
+| 2019 | -0.108 | -0.141 to -0.075 | <0.001 |
+| 2020 | -0.007 | -0.037 to +0.021 | 0.61 |
+| 2021 | -0.102 | -0.130 to -0.073 | <0.001 |
+| 2022 | -0.001 | -0.018 to +0.018 | 0.94 |
+| 2023 | -0.016 | -0.033 to +0.002 | 0.07 |
+| 2024 | +0.010 | -0.004 to +0.025 | 0.15 |
+| 2025 | -0.028 | -0.048 to -0.007 | 0.01 |
+
+`significance.csv` has 286 comparisons, and many are significant. Read the rows above first:
+with that many tests, a few small p-values will be luck. The intervals hold blend weights and
+tuned parameters fixed, so they slightly understate the full uncertainty.
+
 ## What the results say
 
 - **The availability adjustment is the model's first clear gain.** It cuts the opportunity
   model's MAE by 1.4% and its bias on teams with a fresh absence from -1.03 to -0.43 points.
   On those teams our model alone now matches Sleeper, and the blend beats Sleeper by 1.3%.
 - **QB is where it matters most.** When a starting QB is out, the backup now inherits the
-  starter's volume. Our model alone now beats Sleeper at QB (5.990 vs 6.074 on relevant rows).
-- **The blend beats Sleeper by about 0.8% overall,** in 6 of 7 seasons, with rank correlation
-  and close-call accuracy up too. Close calls are still only 54.7% vs 54.2%: better, not a big edge.
-- **Midweek beats lock overall, lock wins on close calls.** The two are within 0.004 MAE.
-  Midweek is the live model because live projections only know the injury report.
+  starter's volume. The blend's biggest edge over Sleeper is at QB (-0.15 MAE on relevant rows,
+  clearly real). Our model alone is ahead of Sleeper at QB (5.990 vs 6.074) but that is not
+  yet distinguishable from noise (p = 0.07).
+- **The blend beats Sleeper by about 0.8% overall, and the gap is real** (interval -0.047 to
+  -0.023, excluding zero). It is clearly ahead in 3 of 7 seasons (2019, 2021, 2025) and
+  indistinguishable from Sleeper in the other 4: "6 of 7 seasons" overstates it. The close-call
+  edge (54.7% vs 54.2%) is small but real, and comes mostly from RB.
+- **Midweek beats lock on MAE by a real but tiny margin** (0.003). Lock's close-call lead is
+  noise (p = 0.18). Midweek is the live model because live projections only know the injury report.
 - **Sleeper is still hard to beat at RB.** The blend weight on our model is 0.15.
 - **The QB weight still falls over time**, 0.95 in 2019 to 0.60 in 2025, as Sleeper's QB
   projections improve.
 - **The simple baseline blends nearly as well** (4.539 vs 4.525), so averaging two different
-  forecasts is still part of the gain.
+  forecasts is still part of the gain. The opportunity model's extra 0.014 is real on MAE,
+  but not on close calls.
 
 ### Blend weights by test season (midweek, weight on opportunity)
 
@@ -171,6 +229,7 @@ Partial adjustment is best: vacated usage is not fully absorbed by players with 
 | `mae_by_season.csv` | MAE per model, season and variant |
 | `summary.csv` | every metric by row set, position, model and variant |
 | `summary_key_absence.csv` | the same for players on teams with a fresh key absence |
+| `significance.csv` | week-bootstrap gap, 95% interval and p-value per comparison, row set, position and season |
 | `model_card.json` | params, live variant's betas and usual-total factors, blend weights |
 
 `nflm league` uses the newest run folder that has a `model_card.json`.

@@ -29,6 +29,7 @@ A change that breaks a decision needs a new record first.
 - `src/nfl_model/availability.py` who is expected to play, share renormalization
 - `src/nfl_model/model.py`    team volume models and the two projections
 - `src/nfl_model/backtest.py` tuning, walk-forward test, model card
+- `src/nfl_model/significance.py` week-clustered bootstrap intervals for model comparisons
 - `src/nfl_model/live.py`     projections for an upcoming week
 - `src/nfl_model/league.py`   Sleeper lineup, close calls, waivers
 - `src/nfl_model/lines.py`    Kalshi ladders to spread and total
