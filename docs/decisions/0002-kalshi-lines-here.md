@@ -1,6 +1,6 @@
 # 0002. Kalshi lines live here, not in sports_db
 
-- Status: Accepted
+- Status: Accepted, amended by 0011
 - Date: 2026-10-21
 
 ## Context
@@ -11,7 +11,7 @@ need current lines. Kalshi lists NFL spread and total ladders through a public A
 - `lines.py` reads open `KXNFLSPREAD` and `KXNFLTOTAL` markets at run time.
 - The line is where the mid price crosses 50% on each ladder, interpolated between strikes.
 - Kalshi lines are used for live weeks only. Backtests use nflverse closing lines.
-- Nothing from Kalshi is stored in BigQuery yet.
+- Nothing from Kalshi is stored in BigQuery yet. (0011 records hourly snapshots in `nflm_raw`.)
 
 ## Why
 - Kalshi data is not CC0 or CC BY, so it fails sports_db's source rule (sports_db decision 0013).

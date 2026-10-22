@@ -8,6 +8,7 @@ us-west1-c), next to sports_db, the NBA loader and arb-bot. It runs as Linux use
 
 | Time | Job | Command |
 |---|---|---|
+| :05 every hour | record Kalshi NFL lines to `nflm_raw` | `nflm record-lines` |
 | 08:00 daily | NBA loader | (other project) |
 | 09:20 daily | sports_db daily pipeline, about 18 minutes | (sports_db) |
 | **10:15 daily** | rebuild this repo's tables in `nflm` | `nflm refresh` |
@@ -29,7 +30,8 @@ Any dbt failure also posts. Backtests stay on a laptop: tuning needs more memory
 bash deploy/setup_gcp.sh
 ```
 Safe to rerun. In gen-lang-client-0525946386 the VM's account gets BigQuery job user, `dataEditor`
-on the prod dataset `nflm` (created here), and `dataViewer` on `ff_marts`. Nothing changes in
+on the prod dataset `nflm` (created here), `dataViewer` on `ff_marts`, and the custom role
+`rawAppender` (append, never delete) on `nflm_raw`. Nothing changes in
 sports-db-209650: the account can already read `staging`, `raw_nfl`, `raw_meta` and the alert secret.
 
 ## 2. Install on the VM
@@ -66,7 +68,11 @@ gcloud compute ssh sports-vm --zone us-west1-c --project nba-analytics-499420 --
 ```
 
 ## Logs
-`/home/gridiron/gridiron-signal/logs/refresh.log` and `league.log`, rotated weekly, 8 kept.
+`/home/gridiron/gridiron-signal/logs/refresh.log`, `record.log` and `league.log`, rotated weekly, 8 kept.
+
+## Line recorder
+`nflm record-lines` takes about 8 seconds and peaks near 160 MB (measured 2026-10-22). A failed snapshot posts to Discord;
+the next hour's run tries again. Missed hours cannot be filled in later.
 
 ## Memory
 The refresh is dbt only; BigQuery does the work. `nflm league --refresh` loads about 90k player
@@ -74,4 +80,6 @@ games into pandas, a few hundred MB, at times when no other job runs. If the ker
 (`dmesg`), move the lineup post to a laptop or the VM to e2-small.
 
 ## Cost
-No new VM. BigQuery: the daily build processes about 400 MB, inside the free tier.
+No new VM. BigQuery: the daily build processes about 400 MB, inside the free tier. The line
+recorder appends about 700 market rows an hour at about 140 bytes each, roughly 0.4 GB a season,
+inside the 10 GB of free storage. Load jobs are free.

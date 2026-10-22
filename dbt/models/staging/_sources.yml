@@ -29,3 +29,14 @@ sources:
     tables:
       - name: int_weekly_projected_points
       - name: int_weekly_actual_points
+
+  - name: nflm_raw
+    description: >
+      Append-only data this repo records itself (record.py). Shared by every environment.
+    database: "{{ env_var('NFLM_GCP_PROJECT', 'gen-lang-client-0525946386') }}"
+    schema: "{{ env_var('NFLM_RAW_DATASET', 'nflm_raw') }}"
+    tables:
+      - name: kalshi_markets
+        description: One row per open Kalshi NFL market per hourly snapshot.
+      - name: kalshi_game_lines
+        description: One row per game per snapshot. Median spread and total, de-vigged win probability.

@@ -59,6 +59,7 @@ uv run nflm league                # this week's lineup, close calls, waiver targ
 uv run nflm league --week 8 --user "display name"
 uv run nflm league --refresh      # re-read BigQuery after new stats load
 uv run nflm refresh               # check sports_db is fresh, then dbt build (cron on the VM)
+uv run nflm record-lines          # append a snapshot of Kalshi NFL lines (hourly cron on the VM)
 uv run nflm backtest              # tune, walk-forward test, write output/backtests/<timestamp>/
 uv run nflm backtest --skip-tune  # reuse the last tuned params
 uv run pytest
@@ -89,4 +90,4 @@ uv run pytest
 
 1. Discount Questionable players; model who specifically replaces an absent starter
 2. Game simulation for score distributions, then lineups that maximize win probability
-3. Store Kalshi price history for line-movement features
+3. Line-movement features from the recorded Kalshi history (recording since 2026-10-22)

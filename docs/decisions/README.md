@@ -12,7 +12,7 @@ A new decision gets the next number. A changed decision gets a new record that m
 | # | Decision | Status |
 |---|---|---|
 | 0001 | A separate repo that reads sports_db and the draft helper | Accepted |
-| 0002 | Kalshi lines live here, not in sports_db | Accepted |
+| 0002 | Kalshi lines live here, not in sports_db | Accepted, amended by 0011 |
 | 0003 | dbt for joins, Python for recency features | Accepted |
 | 0004 | Sleeper to gsis crosswalk from nflverse weekly rosters | Accepted |
 | 0005 | Tune on 2012-2017, walk-forward test on 2019-2025 | Accepted |
@@ -21,6 +21,7 @@ A new decision gets the next number. A changed decision gets a new record that m
 | 0008 | Late-stored lines warn instead of failing | Accepted |
 | 0009 | Renormalize usage shares by who is expected to play | Accepted |
 | 0010 | Refresh on the shared loader VM, after sports_db | Accepted |
+| 0011 | Record Kalshi lines hourly, append-only | Accepted |
 
 ## Template
 ```

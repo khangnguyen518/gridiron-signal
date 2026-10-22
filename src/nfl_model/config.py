@@ -11,6 +11,8 @@ load_dotenv(ROOT / ".env")
 NFLM_GCP_PROJECT = os.getenv("NFLM_GCP_PROJECT", "gen-lang-client-0525946386")
 NFLM_DATASET = os.getenv("NFLM_DATASET", "nflm_dev")
 NFLM_DBT_TARGET = os.getenv("NFLM_DBT_TARGET", "dev")
+# Append-only raw data this repo records itself (Kalshi lines), shared by every environment
+NFLM_RAW_DATASET = os.getenv("NFLM_RAW_DATASET", "nflm_raw")
 SPORTS_DB_PROJECT = os.getenv("SPORTS_DB_PROJECT", "sports-db-209650")
 SPORTS_DB_STAGING = os.getenv("SPORTS_DB_STAGING", "dev_staging")
 SLEEPER_LEAGUE_ID = os.getenv("SLEEPER_LEAGUE_ID") or None

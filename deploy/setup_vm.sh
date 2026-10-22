@@ -50,6 +50,7 @@ step ".env (no secrets: the Discord webhook comes from Secret Manager)"
 as_app "test -f '$REPO_DIR/.env' || cat > '$REPO_DIR/.env' <<ENV
 NFLM_GCP_PROJECT=gen-lang-client-0525946386
 NFLM_DATASET=nflm
+NFLM_RAW_DATASET=nflm_raw
 NFLM_DBT_TARGET=prod
 SPORTS_DB_PROJECT=sports-db-209650
 SPORTS_DB_STAGING=staging

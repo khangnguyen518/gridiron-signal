@@ -33,3 +33,19 @@ models:
         description: Sleeper's weekly projection scored with the league's settings. 2018 onward.
       - name: sleeper_actual_points
         description: Sleeper's actual stats scored with the league's settings. Used to check our scoring.
+
+  - name: fct_kalshi_closing_lines
+    description: >
+      One row per game with any pregame Kalshi snapshot: the last pregame spread and total (from a
+      full ladder) and win probability, next to nflverse's closing line.
+    data_tests:
+      - dbt_utils_free_unique_combo:
+          arguments:
+            columns: [game_id]
+    columns:
+      - name: closing_hours_to_kickoff
+        description: How long before kickoff the closing snapshot was taken. Hourly recording keeps it under about 1.
+      - name: spread_diff
+        description: Kalshi minus nflverse closing home spread.
+      - name: total_diff
+        description: Kalshi minus nflverse closing total.

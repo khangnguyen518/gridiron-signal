@@ -3,6 +3,7 @@
 uv run nflm backtest [--refresh]
 uv run nflm league [--league-id ID] [--user NAME] [--week N] [--refresh] [--discord]
 uv run nflm refresh [--force]
+uv run nflm record-lines
 """
 
 import argparse
@@ -26,6 +27,8 @@ def main() -> None:
     rf = sub.add_parser("refresh", help="check sports_db freshness, then dbt build (for cron)")
     rf.add_argument("--force", action="store_true", help="build even if sports_db did not build recently")
 
+    sub.add_parser("record-lines", help="append a snapshot of Kalshi NFL markets and lines (for cron)")
+
     args = parser.parse_args()
     if args.command == "backtest":
         from nfl_model import backtest
@@ -48,6 +51,12 @@ def main() -> None:
         from nfl_model import refresh
 
         sys.exit(refresh.main(force=args.force))
+    elif args.command == "record-lines":
+        import sys
+
+        from nfl_model import record
+
+        sys.exit(record.main())
 
 
 if __name__ == "__main__":

@@ -13,11 +13,15 @@ sports_db (BigQuery, read only)         draft helper (BigQuery, read only)
             │                                       │
             └──────────────┬────────────────────────┘
                            ▼
+   Kalshi API ──hourly, record.py──> nflm_raw (append-only)
+                           │
             dbt (this repo) -> nflm_dev
               int_team_games        team x game: lines, points, volume
               int_player_games      player x game: box score + red zone
               int_player_xwalk      Sleeper ID <-> gsis_id
               int_player_game_status  roster + injury status: who was expected to play
+              int_kalshi_game_lines   recorded Kalshi snapshots matched to games
+              fct_kalshi_closing_lines  last pregame Kalshi line vs nflverse
               fct_player_game_inputs  model input (player games + team + Sleeper)
                            │
                            ▼   data.py caches each table as Parquet in data/cache/
@@ -54,7 +58,7 @@ Python does the recency weighting, which the tuning loop recomputes hundreds of 
 | Where | Target and dataset | Reads sports_db | Runs |
 |---|---|---|---|
 | Laptop | `dev`, `nflm_dev` | `dev_staging` | everything, by hand |
-| `sports-vm` | `prod`, `nflm` | `staging` | `nflm refresh` daily, `nflm league --discord` Sun and Thu |
+| `sports-vm` | `prod`, `nflm` | `staging` | `nflm record-lines` hourly, `nflm refresh` daily, `nflm league --discord` Sun and Thu |
 
 See `deploy/README.md` and decision 0010.
 
@@ -99,6 +103,7 @@ dbt reads the same variables through `env_var()` in `dbt/profiles.yml` and `dbt/
 | `NFLM_GCP_PROJECT` | `gen-lang-client-0525946386` | project this repo writes to |
 | `NFLM_DATASET` | `nflm_dev` | dataset this repo writes to (`nflm` on the VM) |
 | `NFLM_DBT_TARGET` | `dev` | dbt target for `nflm refresh` (`prod` on the VM) |
+| `NFLM_RAW_DATASET` | `nflm_raw` | append-only data this repo records (Kalshi), shared by every environment |
 | `NFLM_ALERT_WEBHOOK_URL` / `NFLM_ALERT_SECRET` | none | Discord webhook, or the Secret Manager version holding it |
 | `SPORTS_DB_PROJECT` | `sports-db-209650` | sports_db project |
 | `SPORTS_DB_STAGING` | `dev_staging` | sports_db staging dataset to read |

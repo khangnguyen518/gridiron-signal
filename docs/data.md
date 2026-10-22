@@ -13,6 +13,7 @@ Every table this repo builds, what it reads, and the data facts that are easy to
 | sports_db staging | `stg_nflverse__rosters_weekly` | weekly roster status (ACT, INA game-day inactive, RES, PUP, SUS) |
 | sports_db staging | `stg_nflverse__injuries_history` | injury report status as known before kickoff |
 | sports_db raw | `raw_nfl.rosters_weekly` | `sleeper_id` to `gsis_id`, which staging drops |
+| this repo, `nflm_raw` | `kalshi_markets`, `kalshi_game_lines` | hourly Kalshi snapshots recorded by `nflm record-lines` |
 | draft helper | `int_weekly_projected_points` | Sleeper's projection, scored with the league's settings |
 | draft helper | `int_weekly_actual_points` | Sleeper's league-scored actuals |
 
@@ -63,6 +64,32 @@ INA, RES, PUP, SUS), 2010 onward: 141.8k rows.
 Checked 2016-2025: INA players played 0% of the time; ACT players reported Out played 0.1%.
 Test: unique `(game_id, gsis_id)`.
 
+### Raw: `nflm_raw.kalshi_markets` and `nflm_raw.kalshi_game_lines`
+Written by `nflm record-lines` every hour on the VM, append-only, partitioned by
+`DATE(snapshot_at)`, clustered by `event`. Shared by laptops and the VM (decision 0011).
+
+- `kalshi_markets`: one row per open market per snapshot. Series (`KXNFLSPREAD`, `KXNFLTOTAL`,
+  `KXNFLGAME`), ticker, team code, strike, yes bid, ask and last price in dollars, volume, open
+  interest, status, the market's expected end time.
+- `kalshi_game_lines`: one row per game per snapshot, derived in `lines.game_lines`: away and home
+  (Kalshi codes), median home margin, median total, home win probability (winner mids normalized
+  over both teams), and how many ladder markets had both a bid and an ask.
+
+Spread and total ladders open about a week before a game; winner markets open earlier. Earlier
+snapshots have a win probability but no spread or total.
+
+### `int_kalshi_game_lines`
+Every snapshot matched to its nflverse game on the Eastern game date and away+home codes
+(Kalshi's `LAR` and `JAC` are nflverse's `LA` and `JAX`). Adds `hours_to_kickoff`, `is_pregame`,
+implied points and nflverse's latest line. Test: unique `(game_id, snapshot_at)`; a separate test
+warns on recorded games that match no nflverse game.
+
+### `fct_kalshi_closing_lines`
+One row per game with a pregame snapshot: the last pregame spread and total from a full ladder, the
+last pregame win probability, nflverse's closing line, and the differences. Test: unique `game_id`.
+First check (2026-10-22, 14 week-7 games about 3 days out): Kalshi's medians were within 0.75
+points of nflverse's lines.
+
 ### `fct_player_game_inputs`
 `int_player_games` joined to the team's row in `int_team_games` (columns prefixed `team_`)
 and to Sleeper's projection and actual through the crosswalk. Sleeper columns are null before
@@ -100,6 +127,10 @@ and to Sleeper's projection and actual through the crosswalk. Sleeper columns ar
   player's last nflverse position, not Sleeper's.
 - **Sleeper projections are backfilled.** They are probably Sleeper's final pregame version, which
   makes the benchmark slightly harder than what a user saw midweek.
+
+- **Kalshi history starts 2026-10-22.** Earlier seasons have no recorded snapshots, and missed
+  hours cannot be filled in. Snapshots after kickoff are recorded too (markets trade during the
+  game); only `is_pregame` rows are pregame information.
 
 ## Local cache
 

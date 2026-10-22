@@ -20,7 +20,7 @@ A change that breaks a decision needs a new record first.
 - **sports_db** (`~/projects/sports_db`): nflverse staging in `SPORTS_DB_STAGING` (default `dev_staging`), plus `raw_nfl.rosters_weekly` for Sleeper IDs only. Read only.
 - **fantasy-football-draft-helper**: Sleeper weekly projections and league-scored actuals in `ff_marts`. Read only.
 - **Sleeper public API**: league, rosters, users, projections, players (cached a day), trending adds.
-- **Kalshi public API**: live NFL spread and total ladders. Kept here, never loaded into sports_db.
+- **Kalshi public API**: NFL spread, total and winner markets. Recorded hourly into `nflm_raw` and read live. Kept here, never loaded into sports_db.
 
 ## Repo map
 - `dbt/models/intermediate/` team games with lines, player games, availability, Sleeper crosswalk
@@ -36,6 +36,7 @@ A change that breaks a decision needs a new record first.
 - `src/nfl_model/scoring.py`  league scoring
 - `src/nfl_model/refresh.py`  scheduled refresh: sports_db freshness check, dbt build
 - `src/nfl_model/alerts.py`   Discord alerts and lineup posts
+- `src/nfl_model/record.py`   hourly Kalshi line recorder (0011)
 - `model/model_card.json`     the live model (written by backtest, committed to deploy)
 - `deploy/`                   VM setup scripts, crontab, VM runbook (0010)
 - `tests/`                    pytest
@@ -47,6 +48,7 @@ A change that breaks a decision needs a new record first.
 - Backtest: `uv run nflm backtest` (add `--skip-tune` to reuse the last tuned params, `--refresh` to re-read BigQuery)
 - League: `uv run nflm league [--week N] [--user NAME] [--league-id ID] [--refresh] [--discord]`
 - Refresh (cron on the VM): `uv run nflm refresh [--force]`
+- Record Kalshi lines (cron on the VM, hourly): `uv run nflm record-lines`
 - Test: `uv run pytest`
 - Lint and format: `uv run ruff check src tests --fix && uv run ruff format src tests`
 
@@ -65,6 +67,7 @@ A change that breaks a decision needs a new record first.
 
 ## Data rules
 - Never write to sports_db or the draft helper's datasets.
+- `nflm_raw` is append-only and shared by every environment. Never update, delete or truncate it. (0011)
 - Select named columns from sports_db raw tables. Never `select *` from raw.
 - A Sleeper ID that maps to two gsis IDs, or the reverse, is dropped, never guessed. (0004)
 

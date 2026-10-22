@@ -8,6 +8,7 @@
 #   - BigQuery job user on the project (dbt and Python run their jobs here)
 #   - dataEditor on the prod dataset nflm (created here first)
 #   - dataViewer on ff_marts (the draft helper's Sleeper projections, read only)
+#   - custom role rawAppender (append, never delete) on nflm_raw, where Kalshi lines are recorded
 # sports_db already lets the account read its staging, raw_nfl and raw_meta datasets, and read the
 # alert-discord-webhook secret, so nothing changes in sports-db-209650.
 set -euo pipefail
@@ -16,6 +17,7 @@ PROJECT="${PROJECT:-gen-lang-client-0525946386}"
 HOST_PROJECT="${HOST_PROJECT:-nba-analytics-499420}"
 SA="${SA:-$(gcloud compute project-info describe --project "$HOST_PROJECT" --format='value(defaultServiceAccount)')}"
 DATASET="${DATASET:-nflm}"
+RAW_DATASET="${RAW_DATASET:-nflm_raw}"
 
 step() { printf '\n== %s\n' "$*"; }
 
@@ -38,6 +40,19 @@ grant roles/bigquery.dataEditor "$DATASET"
 
 step "Read only: ff_marts"
 grant roles/bigquery.dataViewer ff_marts
+
+step "Raw dataset $RAW_DATASET: append only"
+# Same permissions as sports_db's rawAppender: load jobs can create and append, never delete.
+RAW_PERMISSIONS="bigquery.datasets.get,bigquery.tables.create,bigquery.tables.get,bigquery.tables.getData,bigquery.tables.update,bigquery.tables.updateData"
+if gcloud iam roles describe rawAppender --project "$PROJECT" >/dev/null 2>&1; then
+  gcloud iam roles update rawAppender --project "$PROJECT" --permissions "$RAW_PERMISSIONS" --quiet >/dev/null
+else
+  gcloud iam roles create rawAppender --project "$PROJECT" --stage GA \
+    --title "Raw appender" --description "Append to raw tables. No delete." \
+    --permissions "$RAW_PERMISSIONS"
+fi
+bq --location=US show "$PROJECT:$RAW_DATASET" >/dev/null 2>&1 || bq --location=US mk --dataset "$PROJECT:$RAW_DATASET"
+grant "projects/$PROJECT/roles/rawAppender" "$RAW_DATASET"
 
 step "Done"
 echo "Next: run deploy/setup_vm.sh on the VM (deploy/README.md)."

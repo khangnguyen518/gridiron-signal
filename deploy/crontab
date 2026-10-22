@@ -5,6 +5,10 @@ SHELL=/bin/bash
 PATH=/home/gridiron/.local/bin:/usr/local/bin:/usr/bin:/bin
 REPO=/home/gridiron/gridiron-signal
 
+# Kalshi line history: one snapshot of every open NFL market each hour, appended to nflm_raw.
+# Lines from the past cannot be fetched later, so this runs every hour, all season.
+5 * * * * cd $REPO && flock -n /tmp/gridiron_record.lock uv run nflm record-lines >> logs/record.log 2>&1
+
 # Daily refresh after sports_db's 09:20 UTC pipeline (about 18 minutes; the Tuesday weekly job starts
 # 10:40). Skips and alerts if sports_db did not build in the last 30 hours.
 15 10 * * * cd $REPO && flock -n /tmp/gridiron_refresh.lock uv run nflm refresh >> logs/refresh.log 2>&1

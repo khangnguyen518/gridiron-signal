@@ -111,3 +111,23 @@ models:
         description: ACT or INA, and not reported Out or Doubtful. What the injury report alone says.
       - name: played
         description: True when the player has a stat line for the game. An outcome; never a feature.
+
+  - name: int_kalshi_game_lines
+    description: >
+      Every recorded Kalshi line snapshot matched to its nflverse game (Eastern game date and
+      away+home codes). Snapshots after kickoff are kept and marked is_pregame = false.
+    data_tests:
+      - dbt_utils_free_unique_combo:
+          arguments:
+            columns: [game_id, snapshot_at]
+    columns:
+      - name: home_spread
+        description: Kalshi's median home margin (positive means the home team is favored), from the spread ladders.
+      - name: total
+        description: Kalshi's median total points, from the total ladder.
+      - name: home_win_prob
+        description: Home winner-market mid price divided by the sum of both teams' mids (removes the vig).
+      - name: hours_to_kickoff
+        description: Hours from the snapshot to kickoff. Negative after kickoff.
+      - name: is_pregame
+        description: True when the snapshot was taken before kickoff. Only these are pregame information.
