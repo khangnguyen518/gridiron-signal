@@ -59,6 +59,15 @@ kneels and spikes. Tests: unique `(game_id, team)`; every played team-game has a
 (`team_games_have_situations`). League averages check out: neutral pass rate 52-54%, red-zone
 touchdown rate 55-59%, 64-66 plays a game (2012, 2018, 2024).
 
+### `int_player_game_depth`
+Each QB, RB, WR and TE's pregame depth chart spot per regular-season game, upcoming games included.
+Through 2024: the weekly chart (known 24 hours before the week's first kickoff), tier = depth level.
+From 2025: the last daily snapshot before kickoff (3WR 1TE grouping); WR ranks run across the three
+receiver spots, so WR tier = ceil(rank / 3); other positions use the rank. A player listed twice
+keeps his best tier. Covers 91% of played player-games through 2024 and 98% from 2025. Tier
+separates usage as expected (2016-2026): RB carry share 0.52 / 0.24 / 0.13 by tier, WR target
+share 0.185 / 0.076 / 0.051. Test: unique `(game_id, gsis_id)`.
+
 ### `int_player_game_status`
 One row per QB, RB, WR or TE on a team's weekly roster per regular-season game (statuses ACT,
 INA, RES, PUP, SUS), 2010 onward: 141.8k rows.

@@ -49,9 +49,17 @@ def build_player_table(
     """Every fantasy-relevant player with ours, Sleeper and blended projections, plus
     simulated points (rows aligned with the table, N_SIMS columns)."""
     ours_full, notes = project_week(season, week, scoring)
+    # Role this week (WR1, RB2, ...) from the depth chart and recent usage (roles.py)
+    if "role" in ours_full:
+        ours_full["role_label"] = [
+            f"{p}{int(r)}" if pd.notna(r) else "" for p, r in zip(ours_full["position"], ours_full["role"])
+        ]
+    else:
+        ours_full["role_label"] = ""
     ours = ours_full[
         [
             "sleeper_id",
+            "role_label",
             "opponent",
             "implied_points",
             "spread",
@@ -91,6 +99,7 @@ def build_player_table(
         df["sleeper"].fillna(df["ours"]),
     )
     df["opponent"] = df["opponent"].fillna(df["sleeper_opponent"])
+    df["role_label"] = df["role_label"].replace("", np.nan).fillna(df["position"])  # K, DEF, no history
     df["flag"] = ""
     df.loc[df["ours"].isna() & df["position"].isin(config.POSITIONS), "flag"] = "no history: Sleeper only"
     is_out = df["injury_status"].isin(OUT_STATUSES)
@@ -383,7 +392,7 @@ def run(league_id: str, user: str | None, week: int | None, discord: bool = Fals
 
     cols = [
         "name",
-        "position",
+        "role_label",
         "sleeper_team",
         "opponent",
         "proj",
@@ -409,6 +418,7 @@ def run(league_id: str, user: str | None, week: int | None, discord: bool = Fals
     print("\n=== Waiver targets ===")
     wcols = [
         "name",
+        "role_label",
         "position",
         "sleeper_team",
         "opponent",

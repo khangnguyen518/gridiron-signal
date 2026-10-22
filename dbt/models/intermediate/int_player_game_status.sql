@@ -33,6 +33,11 @@ games as (
 played as (
     select game_id, gsis_id
     from {{ ref('int_player_games') }}
+),
+
+depth as (
+    select game_id, gsis_id, depth_position, depth_tier, depth_rank
+    from {{ ref('int_player_game_depth') }}
 )
 
 select
@@ -49,7 +54,10 @@ select
     r.roster_status = 'ACT' and coalesce(i.report_status, '') != 'Out' as expected_active_lock,
     r.roster_status in ('ACT', 'INA')
         and coalesce(i.report_status, '') not in ('Out', 'Doubtful') as expected_active_midweek,
-    p.gsis_id is not null as played
+    p.gsis_id is not null as played,
+    dc.depth_position,
+    dc.depth_tier,
+    dc.depth_rank
 from rosters as r
 inner join games as g
     on r.season = g.season and r.week = g.week and r.team = g.team
@@ -57,3 +65,5 @@ left join injuries as i
     on r.season = i.season and r.week = i.week and r.gsis_id = i.gsis_id
 left join played as p
     on g.game_id = p.game_id and r.gsis_id = p.gsis_id
+left join depth as dc
+    on g.game_id = dc.game_id and r.gsis_id = dc.gsis_id

@@ -94,27 +94,27 @@ def add_roster_rows(pg: pd.DataFrame, status: pd.DataFrame) -> pd.DataFrame:
     """Adds a placeholder row (played = 0, zero stats) for every rostered player who
     did not play, and the availability flags to every row. Players who played but
     have no roster row count as expected to play."""
-    flags = status[["game_id", "gsis_id", "expected_active_lock", "expected_active_midweek"]]
+    cols = ["game_id", "gsis_id", "expected_active_lock", "expected_active_midweek"]
+    flags = status[cols + [c for c in ("depth_tier",) if c in status]]
     pg = pg.merge(flags, on=["game_id", "gsis_id"], how="left")
     for col in ["expected_active_lock", "expected_active_midweek"]:
         pg[col] = pg[col].fillna(True).astype(bool)
 
     missing = status[~status["played"].astype(bool)]
     missing = missing[missing["gsis_id"].isin(pg["gsis_id"])]  # only players with any NFL game
-    ph = missing[
-        [
-            "game_id",
-            "season",
-            "week",
-            "kickoff_utc",
-            "team",
-            "gsis_id",
-            "player_name",
-            "position",
-            "expected_active_lock",
-            "expected_active_midweek",
-        ]
-    ].copy()
+    keep = [
+        "game_id",
+        "season",
+        "week",
+        "kickoff_utc",
+        "team",
+        "gsis_id",
+        "player_name",
+        "position",
+        "expected_active_lock",
+        "expected_active_midweek",
+    ]
+    ph = missing[keep + [c for c in ("depth_tier",) if c in missing]].copy()
     ph[ZERO_COLS] = 0.0
     ph["played"] = 0.0
     return pd.concat([pg, ph], ignore_index=True)

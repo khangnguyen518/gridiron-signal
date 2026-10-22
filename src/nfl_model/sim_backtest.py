@@ -32,6 +32,7 @@ from nfl_model.backtest import (
     season_volumes,
 )
 from nfl_model.features import Params
+from nfl_model.roles import RoleParams
 from nfl_model.simulate import (
     QUANTILES,
     SimParams,
@@ -186,6 +187,7 @@ def main(refresh: bool = False) -> None:
         flag=VARIANTS[card["live_variant"]],
         center=card["center"],
         with_absence=False,
+        roles=RoleParams(**card["roles"]) if "roles" in card else None,
     )
     proj = proj.dropna(subset=["opp_points", "implied_points", "team_pass_attempts_hat"]).reset_index(
         drop=True

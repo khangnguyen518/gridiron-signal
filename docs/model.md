@@ -9,6 +9,7 @@ team implied points  = (total + spread) / 2
 team volume (4 fits) = f(implied points, spread, team's recent volume)       model.py
 player usage         = team volume x player's recent share                   features.py
                        x availability scale (who else plays this week)       availability.py
+                       pulled toward his team's share for his role (WR1...)  roles.py
 player stat line     = usage x efficiency shrunk to the position average
 player TDs           = team TDs x red-zone share
 points               = league scoring on the stat line                       scoring.py
@@ -89,6 +90,25 @@ scale = clip((usual / S) ^ beta)       targets, carries: clip 0.5-2;  attempts: 
 - **Placeholder rows.** A rostered player who did not play gets a row with `played = 0`, so his
   share counts in S. `lagged_wsum`'s `step` keeps such rows from adding to or aging his history.
 
+## Roles and team role curves (`roles.py`, decision 0014)
+
+After availability renormalization, each week:
+
+1. **Role.** A team's expected-to-play WRs, TEs and RBs are ranked within position by pregame depth
+   chart tier (1 = starter; `int_player_game_depth`), then by recent share (target share for WRs and
+   TEs, carry share for RBs). Rank 1 is the WR1, RB1 or TE1. Players not on the chart rank last.
+2. **Role curve.** For each team and role, the share that role actually got in the team's earlier
+   games, recency-weighted (half-life 8 team games): `curve_target` and `curve_carry`. This is how
+   the offense spreads the ball. A WR1 curve of 0.30 means the scheme feeds its top receiver; 0.18
+   means it spreads targets. An RB1 carry curve of 0.70 is a workhorse backfield; 0.40 a committee.
+3. **Pull.** `share' = (n x share + 2 x curve) / (n + 2)` for target shares (WR, TE, RB) and carry
+   shares (RB), where n is the player's recency-weighted games (`share_games`). Red-zone shares
+   scale with their base share.
+
+A player with a long, steady role barely moves; a new starter, a returning player or a rookie
+leans on what the role usually gets on that team. Ranking by depth chart first beat ranking by
+recent share alone, so a player just named a starter takes the starter's curve.
+
 ## Efficiency (half-life `hl_eff`, shrinkage `k`)
 
 ```
@@ -165,8 +185,8 @@ come from all seasons 2018-2025 with availability renormalization (`model_card.j
 | Position | w on our model |
 |---|---|
 | QB | 0.60 |
-| TE | 0.40 |
-| WR | 0.35 |
+| TE | 0.45 |
+| WR | 0.45 |
 | RB | 0.20 |
 
 When only one projection exists (a rookie with no NFL game, a K or DEF), that one is used.
@@ -183,6 +203,8 @@ When only one projection exists (a rookie with no NFL game, a K or DEF), that on
 | `beta_target` (midweek) | 0.5 | 0, 0.25, 0.5, 0.75, 1 |
 | `beta_carry` (midweek) | 0.75 | same |
 | `beta_att` (midweek) | 0.75 | same |
+| role curve half-life | 8 team games | 4, 8, 16 |
+| role pull, targets and carries | 2 games each | 0, 0.5, 1, 2, 4, 8, 16 |
 
 The betas were tuned on 2016-2018 (roster status is complete from 2016). The `lock` version
 tuned to 0.5, 0.5, 0.75.
@@ -207,10 +229,10 @@ draw, so teammates and opponents share the same game:
 
 Then, per player:
 1. **Center** the draws on the projection in use (the blend, live) by scaling.
-2. **Stretch tails** per position (downside, upside): QB 1.1, 0.8; RB 1.1, 1.0; WR 1.0, 1.1; TE 1.0, 1.0.
+2. **Stretch tails** per position (downside, upside): QB 1.1, 0.9; RB 1.0, 1.1; WR 1.0, 1.1; TE 1.0, 1.1.
 3. **Mix with history.** A draw at percentile u becomes w x draw + (1 - w) x (projection + the
    historical miss at percentile u for that position and projection quintile). Weights on the
-   simulation: QB 0, RB 0.5, WR 0.5, TE 0.75. QB ranges come from history alone, which beat the
+   simulation: QB 0.25, RB 0.75, WR 0.75, TE 0.5. QB ranges lean on history, which beats the
    simulation for QBs. The historical misses (99 percentiles x 4 positions x 5 projection
    levels) are stored in the model card.
 

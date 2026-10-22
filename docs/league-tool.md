@@ -23,7 +23,9 @@ best-projection lineup if none are set. If swapping bench players raises win pro
 are listed with the new win probability (saved as `lineup_max_win.csv`).
 
 **Best lineup.** Your roster placed into the league's slots to maximize total projection.
-Columns: slot, player, position, team, opponent, `proj` (what the lineup uses), `p10` and `p90`
+Columns: slot, player, role (WR1, RB2, ... from this week's depth chart and recent usage; plain
+position for kickers, defenses and players with no history), team, opponent, `proj` (what the
+lineup uses), `p10` and `p90`
 (the 80% range: one game in ten lands below p10, one above p90), `ours`, `sleeper`, the team's
 implied points, and a flag.
 

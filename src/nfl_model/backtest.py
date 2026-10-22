@@ -23,6 +23,7 @@ from nfl_model import config, data
 from nfl_model.availability import Renorm, add_roster_rows, add_team_usual, centers, key_absence, renormalize
 from nfl_model.features import Params, add_player_features, add_team_features, season_priors
 from nfl_model.model import fit_volume_models, predict_volume, project
+from nfl_model.roles import RoleParams, add_role_curves, apply_roles, assign_roles, shrink_to_roles
 from nfl_model.scoring import fantasy_points
 from nfl_model.significance import close_call_gap, mae_gap
 
@@ -45,6 +46,10 @@ RENORM_SEASONS = range(2016, 2019)
 BETA_GRID = [0.0, 0.25, 0.5, 0.75, 1.0]
 VARIANTS = {"lock": "expected_active_lock", "midweek": "expected_active_midweek"}
 LIVE_VARIANT = "midweek"  # live projections know the injury report, not the inactive list
+# Roles (decision 0014): tuned on RENORM_SEASONS. Ranking by depth chart tier first beat ranking by
+# recent share alone (2016-2018 MAE 4.548 vs 4.564), so only the depth rule is searched here.
+ROLE_HL_GRID = [4.0, 8.0, 16.0]
+ROLE_K_GRID = [0.0, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0]
 
 
 def prepare(pg: pd.DataFrame, scoring: dict[str, float] | None = None) -> pd.DataFrame:
@@ -88,9 +93,16 @@ def project_rows(
     flag: str = VARIANTS["lock"],
     center: dict[str, float] | None = None,
     with_absence: bool = True,
+    roles: RoleParams | None = None,
 ) -> pd.DataFrame:
     """Projections for played player-games in `seasons`, optionally renormalizing shares
-    by who was expected to play. Adds key_absence (a fresh absence on the team)."""
+    by who was expected to play and pulling them toward team role curves. Adds key_absence
+    (a fresh absence on the team)."""
+    if roles is not None:
+        # Role curves need every team's earlier seasons, so work on all rows at once
+        feats = renormalize(feats, flag, renorm, center) if renorm is not None else feats
+        feats = apply_roles(feats, flag, roles)
+        renorm = None
     out = []
     for season in seasons:
         rows = feats[feats["season"] == season]
@@ -343,6 +355,29 @@ def blend_weights(proj: pd.DataFrame) -> dict[str, dict[str, float]]:
     }
 
 
+def tune_roles(
+    feats: pd.DataFrame, volumes: dict[int, pd.DataFrame], flag: str, renorm: Renorm, center: dict
+) -> tuple[RoleParams, pd.DataFrame]:
+    """Role curve half-life and pull strength (targets first, then carries), by opportunity MAE
+    on 2016-2018, after availability renormalization."""
+    base = renormalize(feats, flag, renorm, center)
+
+    def score(f: pd.DataFrame) -> float:
+        proj = project_rows(f, volumes, RENORM_SEASONS, with_absence=False)
+        return _mae(proj["opp_points"], proj["fantasy_points"])
+
+    rows = []
+    for hl in ROLE_HL_GRID:
+        curves = add_role_curves(base, assign_roles(base, flag, "depth"), hl)
+        k_t = min(ROLE_K_GRID, key=lambda k: score(shrink_to_roles(curves, RoleParams("depth", hl, k, 0.0))))
+        for k_c in ROLE_K_GRID:
+            p = RoleParams("depth", hl, k_t, k_c)
+            rows.append({**asdict(p), "opp_mae": score(shrink_to_roles(curves, p))})
+    grid = pd.DataFrame(rows)
+    best = grid.loc[grid["opp_mae"].idxmin()]
+    return RoleParams("depth", float(best["hl_role"]), float(best["k_target"]), float(best["k_carry"])), grid
+
+
 def model_card(params: Params, variants: dict[str, dict]) -> dict:
     """What live projections need: tuned params, the live variant's renormalization
     and blend weights, and the other variants for reference."""
@@ -352,6 +387,7 @@ def model_card(params: Params, variants: dict[str, dict]) -> dict:
         "live_variant": LIVE_VARIANT,
         "renorm": live["renorm"],
         "center": live["center"],
+        "roles": live["roles"],
         "positions": live["positions"],
         "variants": variants,
     }
@@ -388,14 +424,20 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
     share_points = share.set_index(["game_id", "gsis_id"])["share_points"]
 
     projections = {"none": project_rows(feats, volumes, seasons)}
-    renorm_grids, variants = [], {}
+    renorm_grids, role_grids, variants = [], [], {}
     for name, flag in VARIANTS.items():
         print(f"Tuning renormalization ({name}) on {RENORM_SEASONS.start}-{RENORM_SEASONS.stop - 1}...")
         renorm, center, rgrid = tune_renorm(feats, volumes, flag)
         renorm_grids.append(rgrid.assign(variant=name))
-        projections[name] = project_rows(feats, volumes, seasons, renorm=renorm, flag=flag, center=center)
-        variants[name] = {"renorm": asdict(renorm), "center": center}
         print(f"  best {renorm}")
+        print(f"Tuning roles ({name}) on {RENORM_SEASONS.start}-{RENORM_SEASONS.stop - 1}...")
+        roles, role_grid = tune_roles(feats, volumes, flag, renorm, center)
+        role_grids.append(role_grid.assign(variant=name))
+        print(f"  best {roles}")
+        projections[name] = project_rows(
+            feats, volumes, seasons, renorm=renorm, flag=flag, center=center, roles=roles
+        )
+        variants[name] = {"renorm": asdict(renorm), "center": center, "roles": asdict(roles)}
 
     summaries, absence, weights_all, by_season_all, scored_all = [], [], [], [], {}
     for name, proj in projections.items():
@@ -426,6 +468,7 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     grid.to_csv(out_dir / "tuning_grid.csv", index=False)
     pd.concat(renorm_grids).to_csv(out_dir / "renorm_grid.csv", index=False)
+    pd.concat(role_grids).to_csv(out_dir / "role_grid.csv", index=False)
     weights.to_csv(out_dir / "blend_weights.csv", index=False)
     summary.to_csv(out_dir / "summary.csv", index=False)
     absence_summary.to_csv(out_dir / "summary_key_absence.csv", index=False)

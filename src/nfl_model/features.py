@@ -165,6 +165,7 @@ def add_player_features(pg: pd.DataFrame, params: Params, priors: pd.DataFrame) 
 
     hs, he, k = params.hl_share, params.hl_eff, params.k_mult
     pg["prior_games"] = lagged_wsum(played, g, 1e9, played)
+    pg["share_games"] = lagged_wsum(played, g, params.hl_share, played)  # recency-weighted games
 
     team_pa = ws("team_pass_attempts", hs).replace(0, np.nan)
     team_ra = ws("team_rush_attempts", hs).replace(0, np.nan)

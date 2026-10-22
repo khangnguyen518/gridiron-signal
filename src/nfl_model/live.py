@@ -13,12 +13,16 @@ import pandas as pd
 import requests
 
 from nfl_model import config, data, lines, sleeper
-from nfl_model.availability import Renorm, add_team_usual, renormalize
-from nfl_model.backtest import latest_run_dir, prepare
+from nfl_model.availability import Renorm, add_roster_rows, add_team_usual, renormalize
+from nfl_model.backtest import VARIANTS, latest_run_dir, prepare
 from nfl_model.features import Params, add_player_features, add_team_features, season_priors
 from nfl_model.model import fit_volume_models, predict_volume, project
+from nfl_model.roles import RoleParams, apply_roles
 
 # Stat columns a placeholder row carries as zero: nothing is known about this game yet
+# Seasons of history kept for live features. Usage has a 2-game half-life, so older games barely
+# count; position priors still use every season. Keeps memory down on the shared VM.
+LIVE_HISTORY_SEASONS = 3
 # Sleeper injury statuses that mean "not playing" for renormalization (midweek variant)
 INACTIVE_STATUSES = {"Out", "IR", "PUP", "Sus", "NA", "DNR", "Doubtful"}
 
@@ -149,15 +153,39 @@ def project_week(
     future["_future"] = True
     # Who is expected to play, from Sleeper's injury status: the injury report, like the
     # backtest's midweek variant. Shares are renormalized over these players below.
-    future["expected_active"] = ~future.pop("injury_status").isin(INACTIVE_STATUSES)
+    flag = VARIANTS[card.get("live_variant", "midweek")]
+    future[flag] = ~future.pop("injury_status").isin(INACTIVE_STATUSES)
+    roles = RoleParams(**card["roles"]) if "roles" in card else None
 
-    all_rows = pd.concat([pg.assign(_future=False), future], ignore_index=True)
-    feats = add_player_features(all_rows, params, season_priors(pg))
+    priors = season_priors(pg)
+    hist = pg[pg["season"] >= season - LIVE_HISTORY_SEASONS]
+    if roles is not None:
+        # Role curves need each team's earlier games with the same flags and depth tiers as the backtest
+        # Only games before this week: rosters for the upcoming week are already loaded, and placeholder
+        # rows for them would duplicate this week's live rows (double counting every share)
+        status = data.load_player_status()
+        status = status[
+            (status["season"] >= season - LIVE_HISTORY_SEASONS)
+            & (status["kickoff_utc"] < wk["kickoff_utc"].min())
+        ]
+        hist = add_roster_rows(hist, status)
+        depth = data.load_player_depth()[["game_id", "gsis_id", "depth_tier"]]
+        future = future.merge(depth, on=["game_id", "gsis_id"], how="left")
+    all_rows = pd.concat([hist.assign(_future=False), future], ignore_index=True)
+    dupes = all_rows.duplicated(["game_id", "gsis_id"]).sum()
+    if dupes:  # a duplicate would be counted twice in every share and role on its team
+        raise ValueError(f"{dupes} player-games appear twice in live feature rows")
+    feats = add_player_features(all_rows, params, priors)
     if "renorm" in card:
         feats = add_team_usual(feats, pd.concat([tg, wk]), params.hl_team)
-    feats = feats[feats["_future"].astype(bool)]
-    if "renorm" in card:
-        feats = renormalize(feats, "expected_active", Renorm(**card["renorm"]), card["center"])
+    if roles is not None:
+        feats = renormalize(feats, flag, Renorm(**card["renorm"]), card["center"])
+        feats = apply_roles(feats, flag, roles)
+        feats = feats[feats["_future"].astype(bool)]
+    else:
+        feats = feats[feats["_future"].astype(bool)]
+        if "renorm" in card:
+            feats = renormalize(feats, flag, Renorm(**card["renorm"]), card["center"])
 
     other_weeks = tg[~((tg["season"] == season) & (tg["week"] == week))]
     tgf = add_team_features(

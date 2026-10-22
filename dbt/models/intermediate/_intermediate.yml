@@ -113,6 +113,8 @@ models:
         description: ACT or INA, and not reported Out or Doubtful. What the injury report alone says.
       - name: played
         description: True when the player has a stat line for the game. An outcome; never a feature.
+      - name: depth_tier
+        description: Pregame depth chart tier from int_player_game_depth (1 = starter). Null when not listed.
 
   - name: int_kalshi_game_lines
     description: >
@@ -153,3 +155,14 @@ models:
         description: Those drives that ended in a touchdown.
       - name: def_rz_trip_tds
         description: Opponent red-zone drives that ended in a touchdown (allowed).
+
+  - name: int_player_game_depth
+    description: >
+      Each QB, RB, WR and TE's pregame depth chart spot per regular-season game. Through 2024 the
+      weekly chart (known 24 hours before the week); from 2025 the last daily snapshot before
+      kickoff. depth_tier 1 = starter; for 2025+ WRs, tier = ceil(rank / 3) because ranks run
+      across the three receiver spots.
+    data_tests:
+      - dbt_utils_free_unique_combo:
+          arguments:
+            columns: [game_id, gsis_id]

@@ -12,6 +12,8 @@ sources:
       - name: stg_nflverse__pbp
       - name: stg_nflverse__rosters_weekly
       - name: stg_nflverse__injuries_history
+      - name: stg_nflverse__depth_charts_weekly
+      - name: stg_nflverse__depth_charts_history
 
   - name: sports_db_raw
     description: >

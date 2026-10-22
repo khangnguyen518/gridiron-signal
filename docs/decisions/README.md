@@ -24,6 +24,7 @@ A new decision gets the next number. A changed decision gets a new record that m
 | 0011 | Record Kalshi lines hourly, append-only | Accepted |
 | 0012 | Simulate games for ranges and win probability, mixed with history | Accepted |
 | 0013 | Play calling and red-zone rates for rushing only | Accepted |
+| 0014 | Depth chart roles and team role curves | Accepted |
 
 ## Template
 ```
