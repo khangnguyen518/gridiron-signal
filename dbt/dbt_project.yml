@@ -1,0 +1,15 @@
+name: nfl_model
+version: "0.1.0"
+profile: nfl_model
+config-version: 2
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+vars:
+  first_season: 2010
+
+models:
+  nfl_model:
+    +materialized: table

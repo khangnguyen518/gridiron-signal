@@ -1,0 +1,35 @@
+version: 2
+
+models:
+  - name: fct_player_game_inputs
+    description: >
+      Projection model input. One row per skill player per regular-season game played.
+      Stats are outcomes of that game; the Python feature step only uses earlier games.
+      Player columns come from int_player_games; team_ columns from int_team_games.
+    data_tests:
+      - dbt_utils_free_unique_combo:
+          arguments:
+            columns: [game_id, gsis_id]
+    columns:
+      - name: sleeper_id
+        description: Sleeper player_id from int_player_xwalk. Null when unmatched.
+      - name: spread
+        description: Team's expected margin, positive when favored.
+      - name: implied_points
+        description: Team's implied points from the closing line.
+      - name: team_points
+        description: Points the player's team scored.
+      - name: team_pass_attempts
+        description: Team pass attempts in the game, the denominator for target and attempt share.
+      - name: team_rush_attempts
+        description: Team carries in the game, the denominator for carry share.
+      - name: team_rz_pass_attempts
+        description: Team red-zone pass attempts.
+      - name: team_rz_rush_attempts
+        description: Team red-zone carries.
+      - name: league_id
+        description: Sleeper league whose scoring the Sleeper columns use.
+      - name: sleeper_projected_points
+        description: Sleeper's weekly projection scored with the league's settings. 2018 onward.
+      - name: sleeper_actual_points
+        description: Sleeper's actual stats scored with the league's settings. Used to check our scoring.

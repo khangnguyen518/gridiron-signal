@@ -1,0 +1,31 @@
+version: 2
+
+sources:
+  - name: sports_db
+    description: sports_db dbt staging (nflverse, CC BY 4.0). Read only.
+    database: "{{ env_var('SPORTS_DB_PROJECT', 'sports-db-209650') }}"
+    schema: "{{ env_var('SPORTS_DB_STAGING', 'dev_staging') }}"
+    tables:
+      - name: stg_nflverse__schedules
+      - name: stg_nflverse__player_stats_week
+      - name: stg_nflverse__team_stats_week
+      - name: stg_nflverse__pbp
+      - name: stg_nflverse__rosters_weekly
+      - name: stg_nflverse__injuries_history
+
+  - name: sports_db_raw
+    description: >
+      sports_db raw nflverse tables. Only rosters_weekly is read, for its sleeper_id column,
+      which sports_db staging drops. Select named columns only (sports_db cost rule).
+    database: "{{ env_var('SPORTS_DB_PROJECT', 'sports-db-209650') }}"
+    schema: raw_nfl
+    tables:
+      - name: rosters_weekly
+
+  - name: ff
+    description: fantasy-football-draft-helper marts. Sleeper projections and league-scored actuals.
+    database: "{{ env_var('FF_PROJECT', 'gen-lang-client-0525946386') }}"
+    schema: "{{ env_var('FF_MARTS', 'ff_marts') }}"
+    tables:
+      - name: int_weekly_projected_points
+      - name: int_weekly_actual_points

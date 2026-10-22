@@ -1,0 +1,113 @@
+version: 2
+
+models:
+  - name: int_team_games
+    description: >
+      One row per team per regular-season game, 2010 onward, including future games (null stats).
+      Lines from the team's side, points scored, and offensive volume. See docs/data.md.
+    data_tests:
+      - dbt_utils_free_unique_combo:
+          arguments:
+            columns: [game_id, team]
+    columns:
+      - name: game_id
+        description: nflverse game key, for example 2026_07_DAL_PHI.
+      - name: team
+        description: nflverse team code (LA for the Rams, JAX for Jacksonville).
+      - name: opponent
+        description: The other team's nflverse code.
+      - name: is_home
+        description: True for the home team.
+      - name: kickoff_utc
+        description: Kickoff in UTC, from sports_db.
+      - name: spread
+        description: Expected margin from this team's side. Positive means favored. nflverse spread_line is the home margin; away rows flip it.
+      - name: total_line
+        description: Closing total points line.
+      - name: implied_points
+        description: (total_line + spread) / 2. The points the market expects this team to score.
+      - name: lines_known_at
+        description: >
+          When sports_db first stored the line. Closing lines are public before kickoff, but when
+          the sports_db loader misses days, played games get lines stored after kickoff. Those rows
+          only feed the team-volume fit as history (like the backtest's closing lines), so this
+          warns instead of failing (decision 0008). Live projections use Kalshi or lines stored
+          before kickoff.
+        data_tests:
+          - lines_before_kickoff:
+              config:
+                severity: warn
+      - name: points_scored
+        description: Final points. Null before the game.
+      - name: pass_attempts
+        description: Team pass attempts, sacks excluded.
+      - name: sacks
+        description: Sacks taken.
+      - name: rush_attempts
+        description: Team carries.
+      - name: pass_tds
+        description: Team passing touchdowns.
+      - name: rush_tds
+        description: Team rushing touchdowns.
+      - name: rz_pass_attempts
+        description: Pass attempts inside the opponent's 20, no sacks, no two-point tries.
+      - name: rz_rush_attempts
+        description: Rush attempts inside the opponent's 20, no two-point tries.
+
+  - name: int_player_games
+    description: >
+      One row per QB, RB, WR, or TE per regular-season game played, 2010 onward. Box score from
+      sports_db player stats with nulls as 0, plus red-zone opportunities from play-by-play.
+    data_tests:
+      - dbt_utils_free_unique_combo:
+          arguments:
+            columns: [game_id, gsis_id]
+    columns:
+      - name: gsis_id
+        description: nflverse player ID.
+        data_tests: [not_null]
+      - name: position
+        description: nflverse position in that game.
+      - name: team
+        description: The team the player played for in that game.
+      - name: fumbles_lost
+        description: Rushing, receiving, and sack fumbles lost.
+      - name: air_yards
+        description: Receiving air yards.
+      - name: rz_targets
+        description: Targets inside the opponent's 20, no two-point tries.
+      - name: rz_carries
+        description: Carries inside the opponent's 20, no two-point tries.
+
+  - name: int_player_xwalk
+    description: >
+      Sleeper player_id to nflverse gsis_id, from sports_db raw weekly rosters. One-to-one;
+      a Sleeper ID with two gsis IDs, or the reverse, is dropped (decision 0004).
+    columns:
+      - name: sleeper_id
+        description: Sleeper player_id.
+        data_tests: [unique, not_null]
+      - name: gsis_id
+        description: nflverse player ID.
+        data_tests: [unique, not_null]
+
+  - name: int_player_game_status
+    description: >
+      One row per QB, RB, WR, or TE on a team's weekly roster per regular-season game, with
+      pregame availability. Feeds share renormalization (docs/model.md). Injury status is the
+      last version known before kickoff.
+    data_tests:
+      - dbt_utils_free_unique_combo:
+          arguments:
+            columns: [game_id, gsis_id]
+    columns:
+      - name: roster_status
+        description: nflverse weekly roster status. ACT active, INA game-day inactive, RES reserve or IR, PUP, SUS.
+      - name: injury_status
+        description: Last injury report status known before kickoff (Out, Doubtful, Questionable), or null.
+      - name: expected_active_lock
+        description: ACT and not reported Out. What is known at lineup lock, after inactives post.
+      - name: expected_active_midweek
+        description: ACT or INA, and not reported Out or Doubtful. What the injury report alone says.
+      - name: played
+        description: True when the player has a stat line for the game. An outcome; never a feature.
