@@ -65,15 +65,17 @@ def build_features(
             feats[flag] = True
     if status is not None:
         feats = add_team_usual(feats, tg, params.hl_team)
-    return feats, add_team_features(tg, params.hl_team)
+    return feats, add_team_features(tg, params.hl_team, params.coach_k)
 
 
-def season_volumes(tgf: pd.DataFrame, seasons: range | list[int]) -> dict[int, pd.DataFrame]:
+def season_volumes(
+    tgf: pd.DataFrame, seasons: range | list[int], specs: dict[str, list[str]] | None = None
+) -> dict[int, pd.DataFrame]:
     """Team volume predictions per season, each from models fit on earlier seasons only."""
     out = {}
     for season in seasons:
         train = tgf[(tgf["season"] < season) & (tgf["season"] > tgf["season"].min())]
-        out[season] = predict_volume(fit_volume_models(train), tgf[tgf["season"] == season])
+        out[season] = predict_volume(fit_volume_models(train, specs), tgf[tgf["season"] == season], specs)
     return out
 
 

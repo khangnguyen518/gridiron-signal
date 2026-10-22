@@ -16,7 +16,33 @@ from sklearn.linear_model import LinearRegression
 
 from nfl_model.scoring import fantasy_points
 
+# Red-zone inputs: implied points scaled by the team's and the opponent defense's red-zone rates
+RED_ZONE_INPUTS = [
+    "implied_x_rz_td_rate",
+    "implied_x_opp_def_rz_td_rate",
+    "implied_x_rz_pass_td_share",
+    "implied_x_opp_def_rz_pass_td_share",
+    "implied_x_rz_pass_rate",
+]
+# Per target, the inputs chosen on 2013-2018 player MAE (docs/backtest.md, "Team style and red zone").
+# Rushing gains from play calling (the team's neutral pass rate under its head coach, plays per game,
+# and the opponent defense's neutral pass rate faced) and red-zone rates. Passing did not: it keeps
+# the lines-only inputs.
 VOLUME_SPECS: dict[str, list[str]] = {
+    "pass_attempts": ["implied_points", "spread", "team_avg_pass_attempts"],
+    "rush_attempts": [
+        "implied_points",
+        "spread",
+        "team_avg_rush_attempts",
+        "team_neutral_pass_rate",
+        "team_plays_pg",
+        "opp_def_neutral_pass_rate",
+    ],
+    "pass_tds": ["implied_pass_td_pts"],
+    "rush_tds": ["implied_rush_td_pts", *RED_ZONE_INPUTS],
+}
+# The inputs before 2026-10-23, for comparisons
+LINES_ONLY_SPECS: dict[str, list[str]] = {
     "pass_attempts": ["implied_points", "spread", "team_avg_pass_attempts"],
     "rush_attempts": ["implied_points", "spread", "team_avg_rush_attempts"],
     "pass_tds": ["implied_pass_td_pts"],
@@ -25,26 +51,40 @@ VOLUME_SPECS: dict[str, list[str]] = {
 
 
 def _volume_inputs(tg: pd.DataFrame) -> pd.DataFrame:
+    """Derived inputs: implied points split by pass/run touchdown mix, and implied points scaled by
+    red-zone rates (team offense and opponent defense) where those features exist."""
     tg = tg.copy()
     tg["implied_pass_td_pts"] = tg["implied_points"] * tg["team_pass_td_frac"]
     tg["implied_rush_td_pts"] = tg["implied_points"] * (1 - tg["team_pass_td_frac"])
+    if "team_rz_td_rate" in tg:
+        tg["implied_x_rz_td_rate"] = tg["implied_points"] * tg["team_rz_td_rate"]
+        tg["implied_x_opp_def_rz_td_rate"] = tg["implied_points"] * tg["opp_def_rz_td_rate"]
+        tg["implied_x_rz_pass_td_share"] = tg["implied_points"] * tg["team_rz_pass_td_share"]
+        tg["implied_x_opp_def_rz_pass_td_share"] = tg["implied_points"] * tg["opp_def_rz_pass_td_share"]
+        tg["implied_x_rz_pass_rate"] = tg["implied_points"] * tg["team_rz_pass_rate"]
     return tg
 
 
-def fit_volume_models(tg_train: pd.DataFrame) -> dict[str, LinearRegression]:
+def fit_volume_models(
+    tg_train: pd.DataFrame, specs: dict[str, list[str]] | None = None
+) -> dict[str, LinearRegression]:
     """One linear model per team volume stat, on played team-games with history."""
+    specs = specs or VOLUME_SPECS
     tg_train = _volume_inputs(tg_train)
     models = {}
-    for target, cols in VOLUME_SPECS.items():
+    for target, cols in specs.items():
         rows = tg_train.dropna(subset=cols + [target])
         models[target] = LinearRegression().fit(rows[cols], rows[target])
     return models
 
 
-def predict_volume(models: dict[str, LinearRegression], tg: pd.DataFrame) -> pd.DataFrame:
+def predict_volume(
+    models: dict[str, LinearRegression], tg: pd.DataFrame, specs: dict[str, list[str]] | None = None
+) -> pd.DataFrame:
+    specs = specs or VOLUME_SPECS
     tg = _volume_inputs(tg)
     out = tg[["game_id", "team"]].copy()
-    for target, cols in VOLUME_SPECS.items():
+    for target, cols in specs.items():
         ok = tg[cols].notna().all(axis=1)
         pred = pd.Series(np.nan, index=tg.index)
         if ok.any():

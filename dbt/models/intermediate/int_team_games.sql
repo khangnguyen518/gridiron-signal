@@ -11,13 +11,13 @@ sides as (
     select
         game_id, season, week, kickoff_utc, lines_known_at,
         home_team as team, away_team as opponent, true as is_home,
-        spread_line as spread, total_line, home_score as points_scored
+        spread_line as spread, total_line, home_score as points_scored, home_coach as head_coach
     from games
     union all
     select
         game_id, season, week, kickoff_utc, lines_known_at,
         away_team, home_team, false,
-        -spread_line, total_line, away_score
+        -spread_line, total_line, away_score, away_coach
     from games
 ),
 
@@ -37,7 +37,7 @@ team_stats as (
 red_zone as (
     select
         game_id,
-        posteam as team,
+        {{ team_code_asof('posteam', 'season') }} as team,
         countif(pass_attempt = 1 and sack = 0) as rz_pass_attempts,
         countif(rush_attempt = 1) as rz_rush_attempts
     from {{ source('sports_db', 'stg_nflverse__pbp') }}
@@ -57,6 +57,7 @@ select
     s.team,
     s.opponent,
     s.is_home,
+    s.head_coach,
     -- spread from this team's side: positive means favored (nflverse spread_line is home margin)
     s.spread,
     s.total_line,

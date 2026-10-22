@@ -21,6 +21,7 @@ class Params:
     hl_eff: float = 16.0  # half-life in games for efficiency rates
     hl_team: float = 8.0  # half-life in games for team volume
     k_mult: float = 1.0  # scales every shrinkage pseudo-count
+    coach_k: float | None = 2.0  # play-calling under a new head coach: pseudo-count of team history, in games
 
 
 # Base pseudo-counts, in weighted opportunities, before k_mult
@@ -95,9 +96,29 @@ def season_priors(pg: pd.DataFrame) -> pd.DataFrame:
     return out.merge(passing, on="season", how="left")
 
 
-def add_team_features(tg: pd.DataFrame, hl_team: float) -> pd.DataFrame:
-    """Team recency-weighted per-game volume before each game. Unplayed games
-    (future rows) have null stats and add nothing."""
+# Team rates from play-by-play situations: name -> (numerator, denominator, league fallback).
+# off_ = this team's offense; def_ = what this team's defense allowed.
+TEAM_RATES = {
+    "neutral_pass_rate": ("off_neutral_pass_plays", "off_neutral_plays", 0.53),
+    "rz_pass_rate": ("off_rz_pass_plays", "off_rz_plays", 0.55),
+    "rz_td_rate": ("off_rz_trip_tds", "off_rz_trips", 0.57),
+    "rz_pass_td_share": ("off_rz_pass_tds", "off_rz_td_total", 0.58),
+    "def_neutral_pass_rate": ("def_neutral_pass_plays", "def_neutral_plays", 0.53),
+    "def_rz_td_rate": ("def_rz_trip_tds", "def_rz_trips", 0.57),
+    "def_rz_pass_td_share": ("def_rz_pass_tds", "def_rz_td_total", 0.58),
+}
+# Play-calling rates that follow the head coach (shrunk toward team history when he is new)
+COACH_RATES = ("neutral_pass_rate", "rz_pass_rate")
+
+
+def add_team_features(tg: pd.DataFrame, hl_team: float, coach_k: float | None = None) -> pd.DataFrame:
+    """Team recency-weighted per-game volume, play calling and red-zone rates before each game,
+    plus the opponent's defensive rates on the same row (opp_def_*). Unplayed games (future rows)
+    have null stats and add nothing.
+
+    coach_k: when set, play-calling rates under the current head coach are shrunk toward the
+    team's full history with pseudo-count coach_k (in weighted games), so a new coach's own
+    games take over quickly. None ignores the coach."""
     tg = tg.sort_values(["team", "kickoff_utc"]).copy()
     played = tg["pass_attempts"].notna().astype(float)
     games = lagged_wsum(played, tg["team"], hl_team)
@@ -105,7 +126,32 @@ def add_team_features(tg: pd.DataFrame, hl_team: float) -> pd.DataFrame:
         tg[f"team_avg_{col}"] = lagged_wsum(tg[col], tg["team"], hl_team) / games.replace(0, np.nan)
     tds = tg["team_avg_pass_tds"] + tg["team_avg_rush_tds"]
     tg["team_pass_td_frac"] = (tg["team_avg_pass_tds"] / tds.replace(0, np.nan)).fillna(0.6)
-    return tg
+
+    if "off_plays" not in tg:
+        return tg
+    tg["off_rz_td_total"] = tg["off_rz_pass_tds"] + tg["off_rz_rush_tds"]
+    tg["def_rz_td_total"] = tg["def_rz_pass_tds"] + tg["def_rz_rush_tds"]
+    tg["team_plays_pg"] = lagged_wsum(tg["off_plays"], tg["team"], hl_team) / games.replace(0, np.nan)
+    tg["team_rz_trips_pg"] = lagged_wsum(tg["off_rz_trips"], tg["team"], hl_team) / games.replace(0, np.nan)
+    tg["team_def_rz_trips_pg"] = lagged_wsum(tg["def_rz_trips"], tg["team"], hl_team) / games.replace(
+        0, np.nan
+    )
+    for name, (num, den, fallback) in TEAM_RATES.items():
+        n, d = lagged_wsum(tg[num], tg["team"], hl_team), lagged_wsum(tg[den], tg["team"], hl_team)
+        rate = (n / d.replace(0, np.nan)).fillna(fallback)
+        if coach_k is not None and name in COACH_RATES and "head_coach" in tg:
+            era = tg["team"] + "|" + tg["head_coach"].fillna("")
+            cn, cd = lagged_wsum(tg[num], era, hl_team), lagged_wsum(tg[den], era, hl_team)
+            # pseudo-count in plays: coach_k games of the denominator's usual size
+            k = coach_k * (d / games.replace(0, np.nan)).fillna(0)
+            rate = ((cn + k * rate) / (cd + k).replace(0, np.nan)).fillna(rate)
+        tg[f"team_{name}"] = rate
+
+    defense = [c for c in tg.columns if c.startswith("team_def_")]
+    opp = tg[["game_id", "team"] + defense].rename(
+        columns={"team": "opponent", **{c: "opp_" + c.removeprefix("team_") for c in defense}}
+    )
+    return tg.merge(opp, on=["game_id", "opponent"], how="left")
 
 
 def add_player_features(pg: pd.DataFrame, params: Params, priors: pd.DataFrame) -> pd.DataFrame:

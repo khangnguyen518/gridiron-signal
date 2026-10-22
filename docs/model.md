@@ -114,9 +114,19 @@ One linear regression per team stat, fit on played team-games from seasons befor
 | Target | Inputs |
 |---|---|
 | pass attempts | implied points, spread, team's recent pass attempts |
-| rush attempts | implied points, spread, team's recent rush attempts |
+| rush attempts | implied points, spread, team's recent rush attempts, **team's neutral-situation pass rate, plays per game, opponent defense's neutral pass rate faced** |
 | pass TDs | implied points x team's recent pass share of TDs |
-| rush TDs | implied points x (1 - that share) |
+| rush TDs | implied points x (1 - that share), **implied points x each red-zone rate: team TD rate per trip, opponent defense's TD rate allowed, team and opponent-defense pass share of red-zone TDs, team red-zone pass rate** |
+
+Inputs in bold were added on 2026-10-23 (decision 0013) and chosen per target on 2013-2018: the
+same inputs made passing projections worse for WRs and TEs, so passing keeps the original inputs.
+
+**Team play calling and red zone** (`features.add_team_features`, from `int_team_game_situations`):
+recency-weighted with `hl_team`. Neutral situations are 1st and 2nd down in quarters 1-3 with the
+score within 7, where pass rate reflects the play caller rather than the scoreboard. Each team row
+also carries the opponent's defensive rates (`opp_def_*`). Under a new head coach, the play-calling
+rates are shrunk toward the team's full history with a pseudo-count of 2 games (`coach_k`), so his
+own games take over quickly; this barely mattered in testing.
 
 "Recent" is a weighted per-game average with half-life `hl_team`. The spread carries game
 script: favorites run more, underdogs throw more. Predictions are clipped at 0.
@@ -157,7 +167,7 @@ come from all seasons 2018-2025 with availability renormalization (`model_card.j
 | QB | 0.60 |
 | TE | 0.40 |
 | WR | 0.35 |
-| RB | 0.15 |
+| RB | 0.20 |
 
 When only one projection exists (a rookie with no NFL game, a K or DEF), that one is used.
 
@@ -197,7 +207,7 @@ draw, so teammates and opponents share the same game:
 
 Then, per player:
 1. **Center** the draws on the projection in use (the blend, live) by scaling.
-2. **Stretch tails** per position (downside, upside): QB 1.1, 0.9; RB 1.1, 1.0; WR 1.0, 1.1; TE 1.0, 1.0.
+2. **Stretch tails** per position (downside, upside): QB 1.1, 0.8; RB 1.1, 1.0; WR 1.0, 1.1; TE 1.0, 1.0.
 3. **Mix with history.** A draw at percentile u becomes w x draw + (1 - w) x (projection + the
    historical miss at percentile u for that position and projection quintile). Weights on the
    simulation: QB 0, RB 0.5, WR 0.5, TE 0.75. QB ranges come from history alone, which beat the

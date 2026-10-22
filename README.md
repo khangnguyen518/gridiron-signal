@@ -32,13 +32,14 @@ range, win prob     = 1,000 simulated games per player, mixed with history (10th
 |---|---|---|---|
 | Sleeper | 4.560 | 0.571 | 54.2% |
 | Points share (baseline) | 4.856 | 0.516 | 52.9% |
-| Opportunity (ours) | 4.662 | 0.551 | 53.7% |
+| Opportunity (ours) | 4.659 | 0.551 | 53.7% |
 | **Blend: opportunity + Sleeper** | **4.525** | **0.575** | **54.7%** |
 
-- The blend beats Sleeper by about 0.8% and wins 6 of 7 seasons (2024 is the exception).
+- The blend beats Sleeper by about 0.8% (MAE gap -0.035, 95% interval -0.047 to -0.023, from a paired week bootstrap). It is clearly ahead in 3 of 7 seasons and statistically tied in the other 4.
 - Renormalizing shares by who is expected to play cut our model's MAE by 1.4%. On teams with a fresh key absence, our model alone now matches Sleeper, and the blend beats it by 1.3%.
-- QB gains most: a backup QB now inherits the starter's volume. Our model alone beats Sleeper at QB (5.99 vs 6.07 on start-worthy QBs).
-- Close calls improved (54.7% vs 54.2%) but are still close to a coin flip.
+- QB gains most: a backup QB now inherits the starter's volume. Our model alone is ahead of Sleeper at QB (5.99 vs 6.07 on start-worthy QBs), but not yet beyond noise (p = 0.07).
+- On close start/sit calls the blend is right 54.7% of the time vs Sleeper's 54.2%: small, but the interval excludes zero (+0.16 to +0.87 points).
+- Team play calling (neutral-situation pass rate, pace, the opponent's run/pass tendencies faced) and red-zone rates improve rushing projections; the same inputs made receiver projections worse, so passing keeps the line-based inputs.
 - Usage needs a short memory: a 2-game half-life beats 12 games by almost 0.09 points of MAE.
 - Each player's 80% range holds 79.7% of outcomes (2019-2025). Mixing the game simulation with history beats either alone, and the simulation's correlations drive matchup win probability.
 

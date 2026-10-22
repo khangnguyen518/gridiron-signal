@@ -18,6 +18,8 @@ models:
         description: The other team's nflverse code.
       - name: is_home
         description: True for the home team.
+      - name: head_coach
+        description: The team's head coach for the game, from the nflverse schedule.
       - name: kickoff_utc
         description: Kickoff in UTC, from sports_db.
       - name: spread
@@ -131,3 +133,23 @@ models:
         description: Hours from the snapshot to kickoff. Negative after kickoff.
       - name: is_pregame
         description: True when the snapshot was taken before kickoff. Only these are pregame information.
+
+  - name: int_team_game_situations
+    description: >
+      One row per team per regular-season game played: play calling (all, neutral-situation and
+      red-zone pass rates), red-zone trips and touchdowns, and what the defense allowed in the same
+      terms. Neutral = 1st or 2nd down, quarters 1-3, score within 7. Excludes two-point tries,
+      kneels and spikes. Feeds team style and red-zone features (docs/model.md).
+    data_tests:
+      - dbt_utils_free_unique_combo:
+          arguments:
+            columns: [game_id, team]
+    columns:
+      - name: off_neutral_pass_plays
+        description: Dropbacks (passes, sacks, scrambles) in neutral situations.
+      - name: off_rz_trips
+        description: Drives that reached the opponent's 20.
+      - name: off_rz_trip_tds
+        description: Those drives that ended in a touchdown.
+      - name: def_rz_trip_tds
+        description: Opponent red-zone drives that ended in a touchdown (allowed).

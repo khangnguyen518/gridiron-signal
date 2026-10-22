@@ -28,7 +28,13 @@ def load_player_games(refresh: bool = False) -> pd.DataFrame:
 
 
 def load_team_games(refresh: bool = False) -> pd.DataFrame:
-    df = _cached_query("team_games", f"select * from {_table('int_team_games')}", refresh)
+    """Team games with each team's play-calling and red-zone numbers (null before kickoff)."""
+    sql = f"""
+        select tg.*, s.* except (game_id, team)
+        from {_table("int_team_games")} as tg
+        left join {_table("int_team_game_situations")} as s using (game_id, team)
+    """
+    df = _cached_query("team_games", sql, refresh)
     return df.sort_values(["team", "kickoff_utc"]).reset_index(drop=True)
 
 

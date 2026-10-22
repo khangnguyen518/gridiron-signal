@@ -160,7 +160,9 @@ def project_week(
         feats = renormalize(feats, "expected_active", Renorm(**card["renorm"]), card["center"])
 
     other_weeks = tg[~((tg["season"] == season) & (tg["week"] == week))]
-    tgf = add_team_features(pd.concat([other_weeks, wk.drop(columns=["line_source"])]), params.hl_team)
+    tgf = add_team_features(
+        pd.concat([other_weeks, wk.drop(columns=["line_source"])]), params.hl_team, params.coach_k
+    )
     train = tgf[
         (tgf["season"] > tgf["season"].min())
         & tgf["pass_attempts"].notna()

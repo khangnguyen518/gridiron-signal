@@ -33,6 +33,7 @@ One row per team per regular-season game, 2010 onward, including future games (n
 | `implied_points` | `(total_line + spread) / 2` |
 | `lines_known_at` | when sports_db first stored these line values |
 | `points_scored` | final points, null before the game |
+| `head_coach` | the team's head coach for the game, from the schedule |
 | `pass_attempts`, `sacks`, `rush_attempts`, `pass_tds`, `rush_tds` | team volume from `team_stats_week` |
 | `rz_pass_attempts`, `rz_rush_attempts` | red-zone plays from play-by-play |
 
@@ -48,6 +49,15 @@ come from play-by-play. Tests: unique `(game_id, gsis_id)`, `gsis_id` not null.
 Sleeper `player_id` to nflverse `gsis_id`, from every weekly roster row with both IDs.
 One-to-one: a Sleeper ID with two gsis IDs, or a gsis ID with two Sleeper IDs, is dropped.
 Tests: both columns unique and not null. See decision 0004.
+
+### `int_team_game_situations`
+One row per team per regular-season game played, from play-by-play: all, neutral-situation and
+red-zone plays and pass plays; red-zone trips (drives that reached the opponent's 20) and those
+ending in a touchdown; red-zone pass and rush touchdowns; and the defense's numbers allowed in the
+same terms. Neutral = 1st or 2nd down, quarters 1-3, score within 7. Excludes two-point tries,
+kneels and spikes. Tests: unique `(game_id, team)`; every played team-game has a row
+(`team_games_have_situations`). League averages check out: neutral pass rate 52-54%, red-zone
+touchdown rate 55-59%, 64-66 plays a game (2012, 2018, 2024).
 
 ### `int_player_game_status`
 One row per QB, RB, WR or TE on a team's weekly roster per regular-season game (statuses ACT,
@@ -106,6 +116,11 @@ and to Sleeper's projection and actual through the crosswalk. Sleeper columns ar
 | Scoring parity | our points from nflverse stats vs Sleeper's league-scored actuals: mean gap 0.03 points; 22 to 43 rows a season differ by more than 1 |
 
 ## Facts that are easy to get wrong
+
+- **Relocated teams in play-by-play.** nflverse play-by-play uses today's codes (LA, LAC, LV) in
+  every season; schedules and player stats use the code of the time (STL through 2015, SD through
+  2016, OAK through 2019). `macros/team_code_asof.sql` maps them. Before 2026-10-23 the red-zone
+  totals in `int_team_games` were zero for those teams and seasons.
 
 - **Roster status before 2016.** nflverse weekly rosters have no game-day `INA` status before 2016,
   and 18% of 2010-2015 player games have no roster row. Availability is tuned on 2016-2018 only.
