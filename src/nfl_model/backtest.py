@@ -393,6 +393,18 @@ def model_card(params: Params, variants: dict[str, dict]) -> dict:
     }
 
 
+# Written by `nflm sim-backtest` into the same card; a backtest must not drop them
+SIM_KEYS = ("sim", "sim_tails", "range_mix", "residual_table")
+
+
+def keep_sim_keys(card: dict, previous: dict) -> tuple[dict, bool]:
+    """`card` plus the range settings from the previous card, and whether they are now stale
+    (the rest of the card changed, so the ranges were tuned on different projections)."""
+    kept = {k: previous[k] for k in SIM_KEYS if k in previous}
+    stale = bool(kept) and any(previous.get(k) != v for k, v in card.items())
+    return {**card, **kept}, stale
+
+
 def latest_run_dir() -> Path | None:
     runs = sorted((config.OUTPUT_DIR / "backtests").glob("*/model_card.json"))
     return runs[-1].parent if runs else None
@@ -477,7 +489,9 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
     (out_dir / "params.json").write_text(
         json.dumps({**asdict(params), "hl_share_points_share": hl_share_baseline}, indent=2)
     )
-    card = json.dumps(model_card(params, variants), indent=2)
+    previous = json.loads(config.MODEL_CARD.read_text()) if config.MODEL_CARD.exists() else {}
+    full, sim_stale = keep_sim_keys(model_card(params, variants), previous)
+    card = json.dumps(full, indent=2)
     (out_dir / "model_card.json").write_text(card)
     config.MODEL_CARD.parent.mkdir(exist_ok=True)
     config.MODEL_CARD.write_text(card + "\n")
@@ -519,3 +533,7 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
     )
     print(sig[headline][sig_cols].round(4).to_string(index=False))
     print(f"\nWrote {out_dir} and {config.MODEL_CARD.relative_to(config.ROOT)} (commit it to deploy)")
+    if sim_stale:
+        print(
+            "The model changed: range settings were kept from the old card. Run `nflm sim-backtest` before committing."
+        )
