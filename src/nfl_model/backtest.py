@@ -40,6 +40,8 @@ HL_TEAM_GRID = [2, 4, 16, 32]  # plus the default 8 already in the main grid
 BLEND_WEIGHTS = np.round(np.arange(0, 1.0001, 0.05), 2)
 CLOSE_CALL_POINTS = 2.0
 RELEVANT_POINTS = 5.0  # Sleeper projection floor for "would you start this player?" rows
+# Starters in a 12-team league: top N per position each week by Sleeper projection
+STARTABLE = {"QB": 12, "RB": 24, "WR": 36, "TE": 12}
 # Roster status (game-day inactives) is complete from 2016. Renormalization strength is tuned
 # on 2016-2018: never scored, so 2019-2025 stays a clean test.
 RENORM_SEASONS = range(2016, 2019)
@@ -259,7 +261,26 @@ def evaluate(proj: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         results.append(
             {"position": position, "season": season, "n": len(test), "w_opp": w_opp, "w_share": w_share}
         )
-    return pd.DataFrame(results), pd.concat(scored, ignore_index=True)
+    scored = pd.concat(scored, ignore_index=True)
+    return pd.DataFrame(results), scored.assign(startable=startable(scored))
+
+
+def startable(df: pd.DataFrame) -> pd.Series:
+    """True for the top N players at each position each week by Sleeper projection (`STARTABLE`).
+    Ranked among scored rows, so a player ruled out late is not in the ranking."""
+    rank = df.groupby(["season", "week", "position"])["sleeper_projected_points"].rank(
+        method="first", ascending=False
+    )
+    return rank <= df["position"].map(STARTABLE)
+
+
+def row_sets(df: pd.DataFrame) -> list[tuple[str, pd.DataFrame]]:
+    """All rows, relevant rows (Sleeper >= 5) and startable rows. Close calls skip `all`."""
+    return [
+        ("all", df),
+        ("relevant", df[df["sleeper_projected_points"] >= RELEVANT_POINTS]),
+        ("startable", df[df["startable"]]),
+    ]
 
 
 MODELS = {
@@ -273,14 +294,11 @@ MODELS = {
 
 def summarize(scored: pd.DataFrame) -> pd.DataFrame:
     rows = []
-    for subset_name, subset in [
-        ("all", scored),
-        ("relevant", scored[scored["sleeper_projected_points"] >= RELEVANT_POINTS]),
-    ]:
+    for subset_name, subset in row_sets(scored):
         for position in ["ALL"] + config.POSITIONS:
             sub = subset if position == "ALL" else subset[subset["position"] == position]
             for name, col in MODELS.items():
-                acc, pairs = close_call_accuracy(sub, col) if subset_name == "relevant" else (np.nan, 0)
+                acc, pairs = close_call_accuracy(sub, col) if subset_name != "all" else (np.nan, 0)
                 rows.append(
                     {
                         "rows": subset_name,
@@ -307,18 +325,15 @@ VARIANT_MODELS = ["opportunity", "blend_opportunity"]
 
 
 def _gaps(frame: pd.DataFrame, a: str, b: str, labels: dict) -> list[dict]:
-    """MAE gap (all and relevant rows) and close-call gap (relevant rows) of `a` vs `b`,
+    """MAE gap (every row set) and close-call gap (relevant and startable rows) of `a` vs `b`,
     for all positions and each position, plus the all-rows MAE gap per season."""
     rows = []
-    for subset_name, subset in [
-        ("all", frame),
-        ("relevant", frame[frame["sleeper_projected_points"] >= RELEVANT_POINTS]),
-    ]:
+    for subset_name, subset in row_sets(frame):
         for position in ["ALL"] + config.POSITIONS:
             sub = subset if position == "ALL" else subset[subset["position"] == position]
             key = {**labels, "rows": subset_name, "position": position, "season": "all"}
             rows.append({**key, "metric": "mae", **mae_gap(sub, a, b)})
-            if subset_name == "relevant":
+            if subset_name != "all":
                 gap = close_call_gap(close_call_counts(sub, a), close_call_counts(sub, b))
                 rows.append({**key, "metric": "close_call_acc", **gap})
     for season, sub in frame.groupby("season"):
@@ -335,6 +350,7 @@ def significance(scored: dict[str, pd.DataFrame]) -> pd.DataFrame:
         for a, b in COMPARISONS:
             rows += _gaps(frame, MODELS[a], MODELS[b], {"variant": variant, "a": a, "b": b})
     keys = ["game_id", "gsis_id", "season", "week", "position", "fantasy_points", "sleeper_projected_points"]
+    keys.append("startable")
     cols = [MODELS[m] for m in VARIANT_MODELS]
     for other in [v for v in scored if v != LIVE_VARIANT]:
         both = scored[LIVE_VARIANT][keys + cols].merge(
@@ -508,6 +524,12 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
     print("\n=== Relevant rows (Sleeper >= 5), ALL positions ===")
     print(
         summary[pick & (summary["rows"] == "relevant") & (summary["position"] == "ALL")][cols]
+        .round(4)
+        .to_string(index=False)
+    )
+    print("\n=== Startable rows (weekly top 12 QB, 24 RB, 36 WR, 12 TE by Sleeper), ALL positions ===")
+    print(
+        summary[pick & (summary["rows"] == "startable") & (summary["position"] == "ALL")][cols]
         .round(4)
         .to_string(index=False)
     )

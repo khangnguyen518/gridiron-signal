@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from nfl_model.backtest import close_call_accuracy, close_call_counts
+from nfl_model.backtest import close_call_accuracy, close_call_counts, startable
 from nfl_model.significance import close_call_gap, mae_gap, week_resamples
 
 
@@ -71,3 +71,18 @@ def test_close_call_gap_from_counts():
     out = close_call_gap(a, b, n_boot=200)
     assert np.isclose(out["estimate"], 0.1)
     assert out["n"] == 20
+
+
+def test_startable_takes_top_n_per_position_week():
+    df = pd.DataFrame(
+        {
+            "season": 2020,
+            "week": [1] * 14 + [2] * 2,
+            "position": ["QB"] * 14 + ["QB", "TE"],
+            "sleeper_projected_points": list(range(14, 0, -1)) + [3.0, 1.0],
+        }
+    )
+    flag = startable(df)
+    # week 1: the top 12 of 14 QBs; week 2: one QB and one TE, both inside their limits
+    assert flag[:14].tolist() == [True] * 12 + [False] * 2
+    assert flag[14:].all()

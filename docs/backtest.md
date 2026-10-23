@@ -1,8 +1,9 @@
 # Backtest
 
 Method, results and findings for the run behind the current model card
-(`output/backtests/20261022_123842/`: tuned parameters from `20261021_210351`, with team
-play-calling and red-zone inputs (decision 0013) and depth chart roles (decision 0014)). Rerun with `uv run nflm backtest`.
+(`output/backtests/20261022_172939/`: tuned parameters from `20261021_210351`, with team
+play-calling and red-zone inputs (decision 0013) and depth chart roles (decision 0014); the same
+model as `20261022_123842`, rerun to add the startable tier). Rerun with `uv run nflm backtest`.
 
 ## Method
 
@@ -28,6 +29,9 @@ Three variants are scored on the same rows:
 
 Rows scored: player games where the player played and Sleeper had a projection (35,389).
 "Relevant" rows also need a Sleeper projection of at least 5 points (23,024).
+"Startable" rows are each week's top 12 QBs, 24 RBs, 36 WRs and 12 TEs by Sleeper projection,
+the starters in a 12-team league (10,416). They are ranked among scored rows, so a player ruled
+out after Sleeper projected him is not in the ranking.
 
 ### Metrics
 - **MAE**: mean absolute error in fantasy points (full PPR, 4-point passing TD).
@@ -137,12 +141,41 @@ Our model alone vs Sleeper at QB, relevant rows: -0.083 MAE, interval -0.184 to 
 | 2024 | +0.013 | -0.006 to +0.033 | 0.17 |
 | 2025 | -0.043 | -0.065 to -0.021 | <0.001 |
 
-`significance.csv` has 286 comparisons, and many are significant. Read the rows above first:
+### Startable players (weekly top 12 QB, 24 RB, 36 WR, 12 TE by Sleeper)
+
+| Model | MAE | Bias | Rank corr | Close calls |
+|---|---|---|---|---|
+| Sleeper | 6.374 | +0.46 | 0.262 | **54.1%** |
+| Opportunity | 6.374 | -0.96 | 0.224 | 52.2% |
+| Blend: points share + Sleeper | 6.331 | +0.25 | 0.263 | 54.1% |
+| **Blend: opportunity + Sleeper** | **6.300** | -0.21 | **0.264** | 53.6% |
+
+About 58,000 close pairs. Rank correlation is low because every player here is already a starter.
+
+| Blend vs Sleeper | MAE gap | 95% interval | Close-call gap | 95% interval |
+|---|---|---|---|---|
+| All | -0.074 | -0.100 to -0.048 | -0.45 pts | -1.18 to +0.24 |
+| QB | -0.199 | -0.316 to -0.083 | +2.18 pts | -0.27 to +4.62 |
+| RB | -0.042 | -0.063 to -0.021 | +0.05 pts | -0.73 to +0.91 |
+| WR | -0.057 | -0.086 to -0.029 | **-1.01 pts** | -2.00 to -0.06 |
+| TE | -0.065 | -0.119 to -0.013 | +0.02 pts | -1.97 to +2.12 |
+
+Our model alone vs Sleeper on startable rows: MAE -0.001 (-0.051 to +0.050), close calls
+-1.89 pts (-2.91 to -0.90). At QB alone it beats Sleeper on MAE: -0.177 (-0.316 to -0.045).
+
+`significance.csv` has 416 comparisons, and many are significant. Read the rows above first:
 with that many tests, a few small p-values will be luck. The intervals hold blend weights and
 tuned parameters fixed, so they slightly understate the full uncertainty.
 
 ## What the results say
 
+- **Among startable players the blend is more accurate, but not better at start/sit.** Its MAE
+  is clearly lower than Sleeper's (-0.074) at every position, yet its close-call accuracy is
+  53.6% vs 54.1% (not significant overall, p = 0.20), and it is significantly worse at WR
+  (-1.0 points). Our model alone is clearly worse at ordering starters (-1.9 points). The
+  relevant-row close-call edge comes from players below starter level. For start/sit between
+  two starters, follow Sleeper's order; the exception is QB, where the blend leads on both
+  measures (close calls not yet significant, p = 0.10).
 - **Depth chart roles are the largest single gain** (decision 0014; section below): our model's MAE
   fell 0.042 and the blend's 0.014, with every position except QB better.
 - **The availability adjustment was the model's first clear gain.** It cuts the opportunity
@@ -152,8 +185,8 @@ tuned parameters fixed, so they slightly understate the full uncertainty.
   starter's volume. The blend's biggest edge over Sleeper is at QB (-0.15 MAE on relevant rows,
   clearly real). Our model alone is ahead of Sleeper at QB (5.991 vs 6.074) but that is not
   yet distinguishable from noise (p = 0.07).
-- **The blend beats Sleeper by about 0.8% overall, and the gap is real** (interval -0.047 to
-  -0.023, excluding zero). It is clearly ahead in 3 of 7 seasons (2019, 2021, 2025) and
+- **The blend beats Sleeper by about 1.1% overall, and the gap is real** (interval -0.063 to
+  -0.036, excluding zero). It is clearly ahead in 3 of 7 seasons (2019, 2021, 2025) and
   indistinguishable from Sleeper in the other 4: "6 of 7 seasons" overstates it. The close-call
   edge (54.7% vs 54.2%, +0.51 points) is small but real, and comes mostly from RB. The MAE edge
   is now real at every position.
@@ -349,7 +382,7 @@ higher because the blend rows are a different set; its coverage is what matters 
 | `summary.csv` | every metric by row set, position, model and variant |
 | `summary_key_absence.csv` | the same for players on teams with a fresh key absence |
 | `significance.csv` | week-bootstrap gap, 95% interval and p-value per comparison, row set, position and season |
-| `model_card.json` | params, live variant's betas and usual-total factors, blend weights |
+| `model_card.json` | params, live variant's betas and usual-total factors, blend weights; keeps `sim`, `sim_tails`, `range_mix` and `residual_table` from the previous card (warns to rerun `nflm sim-backtest` if the model changed) |
 
 `nflm league` uses the newest run folder that has a `model_card.json`.
 
