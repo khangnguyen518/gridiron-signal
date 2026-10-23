@@ -369,6 +369,7 @@ higher because the blend rows are a different set; its coverage is what matters 
 | Vacated targets spread across all positions | 4.604 vs 4.596 (2016-2018) | A missing WR's targets mostly go to other WRs. Replaced by position groups. |
 | League-median usual totals per position | blend 4.528 vs 4.525 | Pushed teams toward league style (a pocket QB got 1.74x carries). Replaced by each team's own usual. |
 | Simulation ranges alone | pinball 1.5407 vs 1.5306 mixed | Too narrow at QB, too few big games overall. Kept for correlation, mixed with history for each player's range. |
+| Opponent coverage (man vs zone) x receiver's past man/zone split, as an adjustment to WR and TE projections (one-off analysis, 2026-10-22, nflverse participation coverage labels 2018-2025, not loaded anywhere) | Sleeper's misses vs predicted edge, slope -0.37 (-1.43 to +0.71) for the efficiency split and -0.03 (-0.72 to +0.65) for the target-share split; out of sample (fit 2019-2021, test 2022-2025) MAE change +0.0002 and -0.0008, both noise | League-wide, man coverage costs WRs about 0.08 points per target against zone after adjusting for situation (lower catch rate, more TDs). A receiver's man/zone efficiency split does not repeat (season to season r = +0.06); his target-share split does (r = +0.33) but is about 3 points of share, so even a defense that plays 10 points more man than average moves him by under 0.2 points. The coverage data is CC BY-SA and excluded from sports_db; using it as a model input would need its own decision record. |
 
 ## Output files
 
