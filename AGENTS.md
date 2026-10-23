@@ -20,7 +20,7 @@ A change that breaks a decision needs a new record first.
 - **sports_db** (`~/projects/sports_db`): nflverse staging in `SPORTS_DB_STAGING` (default `dev_staging`), plus `raw_nfl.rosters_weekly` for Sleeper IDs only. Read only.
 - **fantasy-football-draft-helper**: Sleeper weekly projections and league-scored actuals in `ff_marts`. Read only.
 - **Sleeper public API**: league, rosters, users, projections, players (cached a day), trending adds.
-- **Kalshi public API**: NFL spread, total and winner markets. Recorded hourly into `nflm_raw` and read live. Kept here, never loaded into sports_db.
+- **Kalshi public API**: NFL spread, total and winner markets, recorded hourly into `nflm_raw` and read live; player props, recorded hourly (0015). Kept here, never loaded into sports_db.
 
 ## Repo map
 - `dbt/models/intermediate/` team games with lines, player games, availability, Sleeper crosswalk
@@ -38,7 +38,8 @@ A change that breaks a decision needs a new record first.
 - `src/nfl_model/scoring.py`  league scoring
 - `src/nfl_model/refresh.py`  scheduled refresh: sports_db freshness check, dbt build
 - `src/nfl_model/alerts.py`   Discord alerts and lineup posts
-- `src/nfl_model/record.py`   hourly Kalshi line recorder (0011)
+- `src/nfl_model/record.py`   hourly Kalshi line and player prop recorder (0011, 0015)
+- `src/nfl_model/props.py`    Kalshi player prop markets (0015)
 - `src/nfl_model/simulate.py` game simulation, ranges (0012)
 - `src/nfl_model/sim_backtest.py` calibration and test of the ranges
 - `model/model_card.json`     the live model (written by backtest, committed to deploy)

@@ -21,10 +21,11 @@ A new decision gets the next number. A changed decision gets a new record that m
 | 0008 | Late-stored lines warn instead of failing | Accepted |
 | 0009 | Renormalize usage shares by who is expected to play | Accepted |
 | 0010 | Refresh on the shared loader VM, after sports_db | Accepted |
-| 0011 | Record Kalshi lines hourly, append-only | Accepted |
+| 0011 | Record Kalshi lines hourly, append-only | Accepted, extended by 0015 |
 | 0012 | Simulate games for ranges and win probability, mixed with history | Accepted |
 | 0013 | Play calling and red-zone rates for rushing only | Accepted |
 | 0014 | Depth chart roles and team role curves | Accepted |
+| 0015 | Record Kalshi player props hourly, append-only | Accepted |
 
 ## Template
 ```

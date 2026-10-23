@@ -8,7 +8,7 @@ us-west1-c), next to sports_db, the NBA loader and arb-bot. It runs as Linux use
 
 | Time | Job | Command |
 |---|---|---|
-| :05 every hour | record Kalshi NFL lines to `nflm_raw` | `nflm record-lines` |
+| :05 every hour | record Kalshi NFL lines and player props to `nflm_raw` | `nflm record-lines` |
 | 08:00 daily | NBA loader | (other project) |
 | 09:20 daily | sports_db daily pipeline, about 18 minutes | (sports_db) |
 | **10:15 daily** | rebuild this repo's tables in `nflm` | `nflm refresh` |
@@ -71,8 +71,9 @@ gcloud compute ssh sports-vm --zone us-west1-c --project nba-analytics-499420 --
 `/home/gridiron/gridiron-signal/logs/refresh.log`, `record.log` and `league.log`, rotated weekly, 8 kept.
 
 ## Line recorder
-`nflm record-lines` takes about 8 seconds and peaks near 160 MB (measured 2026-10-22). A failed snapshot posts to Discord;
-the next hour's run tries again. Missed hours cannot be filled in later.
+`nflm record-lines` takes about 8 seconds and peaks near 160 MB (measured 2026-10-22); the player-prop pull
+adds about 3 seconds and runs after the game lines (0015). A failed snapshot posts to Discord, game lines and props
+separately; the next hour's run tries again. Missed hours cannot be filled in later.
 
 ## Memory
 The refresh is dbt only; BigQuery does the work. `nflm league --refresh` loads about 90k player
@@ -83,4 +84,5 @@ simulation, about 145 MB more with it (measured on a laptop), at times when no o
 ## Cost
 No new VM. BigQuery: the daily build processes about 400 MB, inside the free tier. The line
 recorder appends about 700 market rows an hour at about 140 bytes each, roughly 0.4 GB a season,
-inside the 10 GB of free storage. Load jobs are free.
+plus about 4,400 player-prop rows an hour at about 300 bytes, roughly 4 GB a season (0015). Together
+they fit the 10 GB of free storage this season; beyond it storage is about $0.02 a GB a month. Load jobs are free.

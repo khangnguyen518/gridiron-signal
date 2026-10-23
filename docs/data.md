@@ -13,7 +13,7 @@ Every table this repo builds, what it reads, and the data facts that are easy to
 | sports_db staging | `stg_nflverse__rosters_weekly` | weekly roster status (ACT, INA game-day inactive, RES, PUP, SUS) |
 | sports_db staging | `stg_nflverse__injuries_history` | injury report status as known before kickoff |
 | sports_db raw | `raw_nfl.rosters_weekly` | `sleeper_id` to `gsis_id`, which staging drops |
-| this repo, `nflm_raw` | `kalshi_markets`, `kalshi_game_lines` | hourly Kalshi snapshots recorded by `nflm record-lines` |
+| this repo, `nflm_raw` | `kalshi_markets`, `kalshi_game_lines`, `kalshi_player_props` | hourly Kalshi snapshots recorded by `nflm record-lines` |
 | draft helper | `int_weekly_projected_points` | Sleeper's projection, scored with the league's settings |
 | draft helper | `int_weekly_actual_points` | Sleeper's league-scored actuals |
 
@@ -97,6 +97,23 @@ Written by `nflm record-lines` every hour on the VM, append-only, partitioned by
 Spread and total ladders open about a week before a game; winner markets open earlier. Earlier
 snapshots have a win probability but no spread or total.
 
+### Raw: `nflm_raw.kalshi_player_props`
+Written by the same hourly `nflm record-lines` run, append-only, partitioned by `DATE(snapshot_at)`,
+clustered by `event` (decision 0015). One row per open player-prop market per snapshot, about
+4,400 an hour during the season.
+
+- Series in `props.SERIES`: touchdowns (`KXNFLTD`, 1+/2+/3+), first touchdown (`KXNFLFIRSTTD`),
+  receiving, rushing, rushing-plus-receiving and passing yards, receptions, rushing and passing
+  attempts, completions, passing TDs, interceptions, fantasy points (`KXNFLFFPTS`, players and D/ST)
+  and team totals (`KXNFLTEAMTOTAL`).
+- Columns: ticker and title as Kalshi wrote them; `team` (Kalshi code, from the ticker);
+  `player` (from the subtitle; null for team totals); `kalshi_player_id`; `floor_strike` (a "40+"
+  market is P(value > 39.5)); `strike_type`; yes bid, ask and last price in dollars; volume; open
+  interest; status; expected end and close times.
+- First-TD markets have no strike, and include a "no touchdown" outcome with no team.
+- Not matched to gsis IDs yet. Match by name and team when the history is first used, keeping
+  `kalshi_player_id` for a crosswalk; drop ambiguous matches (0004).
+
 ### `int_kalshi_game_lines`
 Every snapshot matched to its nflverse game on the Eastern game date and away+home codes
 (Kalshi's `LAR` and `JAC` are nflverse's `LA` and `JAX`). Adds `hours_to_kickoff`, `is_pregame`,
@@ -152,7 +169,7 @@ and to Sleeper's projection and actual through the crosswalk. Sleeper columns ar
 - **Sleeper projections are backfilled.** They are probably Sleeper's final pregame version, which
   makes the benchmark slightly harder than what a user saw midweek.
 
-- **Kalshi history starts 2026-10-22.** Earlier seasons have no recorded snapshots, and missed
+- **Kalshi history starts 2026-10-22 (player props 2026-10-23).** Earlier seasons have no recorded snapshots, and missed
   hours cannot be filled in. Snapshots after kickoff are recorded too (markets trade during the
   game); only `is_pregame` rows are pregame information.
 
