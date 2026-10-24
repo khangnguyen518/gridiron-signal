@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from nfl_model import config, data
+from nfl_model import config, data, questionable
 from nfl_model.availability import Renorm, add_roster_rows, add_team_usual, centers, key_absence, renormalize
 from nfl_model.features import Params, add_player_features, add_team_features, season_priors
 from nfl_model.model import fit_volume_models, predict_volume, project
@@ -96,10 +96,12 @@ def project_rows(
     center: dict[str, float] | None = None,
     with_absence: bool = True,
     roles: RoleParams | None = None,
+    sat_out: bool = False,
 ) -> pd.DataFrame:
     """Projections for played player-games in `seasons`, optionally renormalizing shares
     by who was expected to play and pulling them toward team role curves. Adds key_absence
-    (a fresh absence on the team)."""
+    (a fresh absence on the team). sat_out=True also keeps players expected to play (`flag`)
+    who did not, scored 0 (decision 0017)."""
     if roles is not None:
         # Role curves need every team's earlier seasons, so work on all rows at once
         feats = renormalize(feats, flag, renorm, center) if renorm is not None else feats
@@ -112,9 +114,15 @@ def project_rows(
             rows = renormalize(rows, flag, renorm, center)
         if with_absence:
             rows = rows.assign(key_absence=key_absence(rows, flag))
-        rows = rows[(rows["prior_games"] >= 1) & (rows["played"] == 1)]
+        keep = rows["played"] == 1
+        if sat_out:
+            keep |= rows[flag].astype(bool)
+        rows = rows[(rows["prior_games"] >= 1) & keep]
         out.append(project(rows, volumes[season], scoring))
-    return pd.concat(out, ignore_index=True)
+    proj = pd.concat(out, ignore_index=True)
+    if sat_out:
+        proj["fantasy_points"] = proj["fantasy_points"].where(proj["played"] == 1, 0.0)
+    return proj
 
 
 def run_projection(
@@ -382,6 +390,77 @@ def significance(scored: dict[str, pd.DataFrame]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def questionable_pair_counts(df: pd.DataFrame, base: str, col: str) -> pd.DataFrame:
+    """Start/sit pairs a Questionable player is in: same position and week, `base` projections
+    within 2 points, exactly one of the two Questionable. `wins`: pairs where `col` ranks the
+    higher scorer first."""
+    rows = []
+    for (season, week, _), grp in df.groupby(["season", "week", "position"]):
+        b, m, a = grp[base].to_numpy(), grp[col].to_numpy(), grp["fantasy_points"].to_numpy()
+        q = grp["injury_status"].eq("Questionable").to_numpy()
+        i, j = np.triu_indices(len(grp), k=1)
+        pick = (np.abs(b[i] - b[j]) <= CLOSE_CALL_POINTS) & (q[i] != q[j]) & (a[i] != a[j]) & (m[i] != m[j])
+        i, j = i[pick], j[pick]
+        rows.append((season, week, int(np.sum((m[i] > m[j]) == (a[i] > a[j]))), len(i)))
+    return pd.DataFrame(rows, columns=["season", "week", "wins", "pairs"])
+
+
+def evaluate_questionable(
+    exp: pd.DataFrame, status: pd.DataFrame, weights: pd.DataFrame
+) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
+    """Fit P(play) and the production multiplier on 2016-2018, then score the adjustment on
+    2019-2025 over every expected-to-play player, those who sat scored 0 (decision 0017).
+
+    Sleeper's stored projections mostly vanish for players who sat (they were updated after
+    inactives), so the blend here uses each player's Sleeper projection from his latest earlier
+    week, for every row alike. Returns the table, scored rows and a results frame."""
+    st = status.assign(regular=questionable.previous_played(status)).sort_values(["gsis_id", "kickoff_utc"])
+    st["sleeper_lag"] = st.groupby("gsis_id")["sleeper_projected_points"].transform(
+        lambda x: x.shift(1).ffill()
+    )
+    cols = ["game_id", "gsis_id", "injury_status", "practice_status", "regular", "sleeper_lag"]
+    df = exp.merge(st[cols], on=["game_id", "gsis_id"], how="left")
+    df["regular"] = df["regular"].fillna(False).astype(bool)
+    table = questionable.fit(df[df["season"].isin(questionable.FIT_SEASONS)])
+
+    test = df[df["season"].isin(TEST_SEASONS)].copy()
+    play, mult = questionable.factors(test, table)
+    test["q_factor"] = play * mult
+    test["opp_q_points"] = test["opp_points"] * test["q_factor"]
+    w = weights[weights["variant"] == LIVE_VARIANT].set_index(["position", "season"])
+    key = list(zip(test["position"], test["season"]))
+    wt, shift = w.loc[key, "w_opp"].to_numpy(), w.loc[key, "shift_opp"].to_numpy()
+    test["blend_lag_points"] = wt * test["opp_points"] + (1 - wt) * test["sleeper_lag"] + shift
+    test["blend_lag_q_points"] = test["blend_lag_points"] * test["q_factor"]
+
+    results = []
+    for name, base, adj in [
+        ("opportunity", "opp_points", "opp_q_points"),
+        ("blend", "blend_lag_points", "blend_lag_q_points"),
+    ]:
+        rows = test.dropna(subset=[base])
+        for subset, sub in [
+            ("expected", rows),
+            ("expected, projected >= 5", rows[rows[base] >= RELEVANT_POINTS]),
+            ("questionable", rows[rows["injury_status"].eq("Questionable")]),
+        ]:
+            gap = mae_gap(sub, adj, base)
+            results.append(
+                {
+                    "model": name,
+                    "rows": subset,
+                    "metric": "mae",
+                    "base": _mae(sub[base], sub["fantasy_points"]),
+                    **gap,
+                }
+            )
+        cc = close_call_gap(
+            questionable_pair_counts(rows, base, adj), questionable_pair_counts(rows, base, base)
+        )
+        results.append({"model": name, "rows": "pairs with one Questionable", "metric": "pair_acc", **cc})
+    return table, test, pd.DataFrame(results)
+
+
 def blend_weights(proj: pd.DataFrame) -> dict[str, dict[str, float]]:
     """Per-position blend weight and median shift fit on every season with Sleeper projections
     (2018 onward)."""
@@ -417,7 +496,7 @@ def tune_roles(
     return RoleParams("depth", float(best["hl_role"]), float(best["k_target"]), float(best["k_carry"])), grid
 
 
-def model_card(params: Params, variants: dict[str, dict]) -> dict:
+def model_card(params: Params, variants: dict[str, dict], questionable_table: dict | None = None) -> dict:
     """What live projections need: tuned params, the live variant's renormalization
     and blend weights, and the other variants for reference."""
     live = variants[LIVE_VARIANT]
@@ -429,6 +508,7 @@ def model_card(params: Params, variants: dict[str, dict]) -> dict:
         "roles": live["roles"],
         "positions": live["positions"],
         "variants": variants,
+        **({"questionable": questionable_table} if questionable_table else {}),
     }
 
 
@@ -489,6 +569,19 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
             feats, volumes, seasons, renorm=renorm, flag=flag, center=center, roles=roles
         )
         variants[name] = {"renorm": asdict(renorm), "center": center, "roles": asdict(roles)}
+        if name == LIVE_VARIANT:
+            # Every expected-to-play player, those who sat scored 0, from 2016 for the Questionable fit
+            expected = project_rows(
+                feats,
+                volumes,
+                range(RENORM_SEASONS.start, TEST_SEASONS.stop),
+                renorm=renorm,
+                flag=flag,
+                center=center,
+                roles=roles,
+                with_absence=False,
+                sat_out=True,
+            )
 
     summaries, absence, weights_all, by_season_all, scored_all = [], [], [], [], {}
     for name, proj in projections.items():
@@ -512,6 +605,9 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
     absence_summary = pd.concat(absence, ignore_index=True)
     weights = pd.concat(weights_all, ignore_index=True)
     by_season = pd.concat(by_season_all)
+    print("Fitting Questionable players on 2016-2018, scoring expected players who sat...")
+    q_table, q_scored, q_results = evaluate_questionable(expected, status, weights)
+    print(f"  {q_table}")
     print("Bootstrapping intervals by week...")
     sig = significance(scored_all)
 
@@ -527,11 +623,13 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
     sig.to_csv(out_dir / "significance.csv", index=False)
     # Every scored player-game of the live variant, for analyses of where the blend misses
     scored_all[LIVE_VARIANT].to_parquet(out_dir / "scored.parquet", index=False)
+    q_results.to_csv(out_dir / "questionable.csv", index=False)
+    q_scored.to_parquet(out_dir / "scored_expected.parquet", index=False)
     (out_dir / "params.json").write_text(
         json.dumps({**asdict(params), "hl_share_points_share": hl_share_baseline}, indent=2)
     )
     previous = json.loads(config.MODEL_CARD.read_text()) if config.MODEL_CARD.exists() else {}
-    full, sim_stale = keep_sim_keys(model_card(params, variants), previous)
+    full, sim_stale = keep_sim_keys(model_card(params, variants, q_table), previous)
     card = json.dumps(full, indent=2)
     (out_dir / "model_card.json").write_text(card)
     config.MODEL_CARD.parent.mkdir(exist_ok=True)
@@ -579,6 +677,15 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
         "\n=== Gap a - b with 95% week-bootstrap interval (MAE: negative favors a; close calls: positive) ==="
     )
     print(sig[headline][sig_cols].round(4).to_string(index=False))
+    print("\n=== Questionable adjustment, 2019-2025, every expected player (sat out = 0) ===")
+    print(
+        "(MAE: adjusted minus unadjusted, negative favors the adjustment; pairs: accuracy gap, positive favors it)"
+    )
+    print(
+        q_results[["model", "rows", "metric", "n", "estimate", "lo", "hi", "p"]]
+        .round(4)
+        .to_string(index=False)
+    )
     print(f"\nWrote {out_dir} and {config.MODEL_CARD.relative_to(config.ROOT)} (commit it to deploy)")
     if sim_stale:
         print(

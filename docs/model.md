@@ -90,6 +90,26 @@ scale = clip((usual / S) ^ beta)       targets, carries: clip 0.5-2;  attempts: 
 - **Placeholder rows.** A rostered player who did not play gets a row with `played = 0`, so his
   share counts in S. `lagged_wsum`'s `step` keeps such rows from adding to or aging his history.
 
+## Questionable players (`questionable.py`, decision 0017)
+
+A Questionable player's projection is multiplied by his chance to play times his production when
+playing, by his last practice before the game (from the nflverse injury report):
+
+| Last practice | Chance to play | Production if playing | Multiplier |
+|---|---|---|---|
+| Did not participate | 0.445 | 0.84 | 0.37 |
+| Limited | 0.727 | 0.93 | 0.68 |
+| Full | 0.873 | 0.94 | 0.82 |
+| No practice status | 0.710 | 0.92 | 0.66 |
+
+Fit on 2016-2018 regulars (players who played their team's previous game): chance to play is the
+share who played; production is (actual / our projection) among those who played, divided by the
+same ratio for healthy regulars. It is applied after the blend. In simulated games a Questionable
+player scores 0 in a 1 - chance share of games and is otherwise centered on his projection times
+the production factor, so ranges and win probability carry the risk that he sits.
+
+Teammates do not yet absorb his expected missing share: renormalization counts him as playing.
+
 ## Roles and team role curves (`roles.py`, decision 0014)
 
 After availability renormalization, each week:
@@ -254,7 +274,7 @@ more than 0.2 points; with shared draws, the comparison between two lineups is f
 than either number alone.
 
 ## Not modeled yet
-- Questionable players are treated as playing, with no discount.
+- Teammates of a Questionable player: renormalization still counts him as fully playing.
 - Who absorbs vacated usage beyond "same position group, in proportion to current shares"
   (for example, the WR2 moving into the WR1's role specifically).
 - Rookies or new signings with no NFL game absorb usage in reality but are not in S.

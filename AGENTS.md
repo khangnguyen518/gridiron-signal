@@ -27,6 +27,7 @@ A change that breaks a decision needs a new record first.
 - `dbt/models/marts/`        `fct_player_game_inputs`, the model input table
 - `src/nfl_model/features.py` recency-weighted shares and shrunk rates
 - `src/nfl_model/availability.py` who is expected to play, share renormalization
+- `src/nfl_model/questionable.py` Questionable players' chance to play and production (0017)
 - `src/nfl_model/roles.py`    depth chart roles, team role curves (0014)
 - `src/nfl_model/model.py`    team volume models and the two projections
 - `src/nfl_model/backtest.py` tuning, walk-forward test, model card
@@ -63,6 +64,7 @@ A change that breaks a decision needs a new record first.
 - Team volume models for season S fit on seasons before S (backtest) or games before the week's first kickoff (live).
 - Tuned parameters come from 2012-2017 only; availability strength and roles from 2016-2018. Blend weights for season S come from 2018 to S-1. (0005, 0009)
 - "Expected to play" uses only pregame information: roster status, injury report known before kickoff, or Sleeper's injury status live. `played` adds placeholder rows and is never a feature. (0009)
+- Questionable rates (chance to play, production when playing) come from 2016-2018 and the last practice status known before kickoff. Judge them on the backtest's `expected` rows, where players who sat score 0; Sleeper's stored projections cannot score those rows, since they vanish for players who sat. (0017)
 - Depth chart tiers come from charts public before kickoff (`int_player_game_depth`). Live feature rows must hold each player-game once; `live.project_week` fails otherwise. (0014)
 - Lines in backtests are nflverse closing lines. Live weeks use Kalshi first. (0002, 0008)
 

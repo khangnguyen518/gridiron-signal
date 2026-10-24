@@ -1,6 +1,7 @@
 # 0009. Renormalize usage shares by who is expected to play
 
 - Status: Accepted
+- Amended by: 0017 (Questionable players' chance to play and production)
 - Date: 2026-10-21
 
 ## Context

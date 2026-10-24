@@ -107,6 +107,14 @@ models:
         description: nflverse weekly roster status. ACT active, INA game-day inactive, RES reserve or IR, PUP, SUS.
       - name: injury_status
         description: Last injury report status known before kickoff (Out, Doubtful, Questionable), or null.
+      - name: practice_status
+        description: Last practice participation on that injury report (DNP, Limited, Full), or null. Feeds the Questionable adjustment (decision 0017).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['DNP', 'Limited', 'Full']
+      - name: sleeper_projected_points
+        description: Sleeper's projection for the player that week, via int_player_xwalk. Null before 2018 or when unmatched. Lets the backtest score expected players who sat.
       - name: expected_active_lock
         description: ACT and not reported Out. What is known at lineup lock, after inactives post.
       - name: expected_active_midweek

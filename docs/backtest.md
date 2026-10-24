@@ -1,9 +1,10 @@
 # Backtest
 
 Method, results and findings for the run behind the current model card
-(`output/backtests/20261024_000432/`: tuned parameters from `20261021_210351`, with team
-play-calling and red-zone inputs (decision 0013), depth chart roles (decision 0014) and the median
-shift after blending (decision 0016)). Rerun with `uv run nflm backtest`.
+(`output/backtests/20261024_110340/`: tuned parameters from `20261021_210351`, with team
+play-calling and red-zone inputs (decision 0013), depth chart roles (decision 0014), the median
+shift after blending (decision 0016) and the Questionable adjustment (decision 0017)). Played-only
+results are identical to `20261024_000432`. Rerun with `uv run nflm backtest`.
 
 ## Method
 
@@ -175,7 +176,38 @@ Our model alone vs Sleeper on startable rows: MAE -0.001 (-0.051 to +0.050), clo
 with that many tests, a few small p-values will be luck. The intervals hold blend weights and
 tuned parameters fixed, so they slightly understate the full uncertainty.
 
+### Questionable players and players who sat (decision 0017)
+
+Every table above scores only games the player played. The `expected` rows add every player
+expected to play under the midweek rule who did not (13,555 of 52,840 rows, 2019-2025), scored
+0. Sleeper's stored projections mostly vanish for players who sat (they exist for 15% of
+Questionable regulars who sat, against 96% who played), so on these rows the blend uses each
+player's Sleeper projection from his latest earlier week, for every row alike.
+
+Adjusted (x chance to play x production if playing, fit on 2016-2018) minus unadjusted:
+
+| Rows | Our model | Blend |
+|---|---|---|
+| Questionable players (2,794) | -0.94 (-1.04 to -0.83) | -0.91 (-1.01 to -0.80) |
+| Expected, projected 5 or more | -0.075 (-0.086 to -0.064) | -0.081 (-0.093 to -0.069) |
+| All expected | -0.050 (-0.055 to -0.044) | -0.049 (-0.056 to -0.043) |
+| Start/sit pairs with one Questionable player, accuracy | +8.4 pts (+7.1 to +9.7) | +9.9 pts (+8.7 to +11.1) |
+
+Pairs: same position and week, unadjusted projections within 2 points, exactly one player
+Questionable (about 55,000 to 63,000 pairs). The 2016-2018 rates carry over to 2019-2025:
+
+| Last practice | Played (test) | Actual points (test) | Adjusted projection (test) |
+|---|---|---|---|
+| Did not participate | 41% | 3.25 | 2.99 |
+| Limited | 62% | 5.47 | 5.57 |
+| Full | 73% | 5.73 | 5.53 |
+
 ## What the results say
+
+- **Questionable players were the largest error in real start/sit decisions** (decision 0017).
+  Counting them as fully playing missed by about 0.9 points per Questionable player on average.
+  The adjustment picks the right player in about 10 more of every 100 close calls that involve one.
+  It is invisible in the played-only tables, which never score a player who sat.
 
 - **The median shift is a free accuracy gain** (decision 0016). Adding the median miss per
   position after blending cuts MAE by 0.054 on all rows, 0.048 on relevant rows and 0.029 on
@@ -401,6 +433,8 @@ higher because the blend rows are a different set; its coverage is what matters 
 | `mae_by_season.csv` | MAE per model, season and variant |
 | `summary.csv` | every metric by row set, position, model and variant |
 | `summary_key_absence.csv` | the same for players on teams with a fresh key absence |
+| `questionable.csv` | the Questionable adjustment on the `expected` rows: MAE gaps and start/sit pair accuracy, with intervals |
+| `scored_expected.parquet` | every expected-to-play player-game 2019-2025, players who sat scored 0, with the adjusted and unadjusted projections |
 | `significance.csv` | week-bootstrap gap, 95% interval and p-value per comparison, row set, position and season |
 | `scored.parquet` | every scored player-game of the live variant: projections, stat lines, blends and actuals, for analyses of the blend's misses |
 | `model_card.json` | params, live variant's betas and usual-total factors, blend weights; keeps `sim`, `sim_tails`, `range_mix` and `residual_table` from the previous card (warns to rerun `nflm sim-backtest` if the model changed) |

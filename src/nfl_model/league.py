@@ -68,6 +68,8 @@ def build_player_table(
             "opp_points",
             "blend_w",
             "blend_shift",
+            "q_play",
+            "q_mult",
             "target_share",
             "carry_share",
             "targets_hat",
@@ -97,9 +99,10 @@ def build_player_table(
     w = df["blend_w"].fillna(0.0)
     both = df["ours"].notna() & df["sleeper"].notna()
     shift = np.where(both, df["blend_shift"].fillna(0.0), 0.0)
-    df["proj"] = np.where(
-        both, w * df["ours"] + (1 - w) * df["sleeper"] + shift, df["sleeper"].fillna(df["ours"])
-    )
+    base = np.where(both, w * df["ours"] + (1 - w) * df["sleeper"] + shift, df["sleeper"].fillna(df["ours"]))
+    # Questionable players (decision 0017): expected points = chance to play x production when playing
+    q_play, q_mult = df["q_play"].fillna(1.0).to_numpy(), df["q_mult"].fillna(1.0).to_numpy()
+    df["proj"] = base * q_play * q_mult
     df["opponent"] = df["opponent"].fillna(df["sleeper_opponent"])
     df["role_label"] = df["role_label"].replace("", np.nan).fillna(df["position"])  # K, DEF, no history
     df["flag"] = ""
@@ -107,13 +110,18 @@ def build_player_table(
     is_out = df["injury_status"].isin(OUT_STATUSES)
     df.loc[is_out, "flag"] = df.loc[is_out, "injury_status"]
     df.loc[df["injury_status"].isin({"Questionable", "Doubtful"}), "flag"] = df["injury_status"]
+    unsure = df["injury_status"].eq("Questionable") & (q_play < 1)
+    df.loc[unsure, "flag"] = [f"Questionable, plays {p:.0%}" for p in q_play[unsure.to_numpy()]]
     on_bye = df["opponent"].isna()
     df.loc[on_bye, "flag"] = "bye"
     df.loc[is_out | on_bye, "proj"] = 0.0
     df["proj"] = df["proj"].round(2)
     # Ranges are centered on the blend before its median shift: the simulation sets each player's
     # mean, and the shifted blend estimates the median, which sits below it (decision 0016)
-    df["center"] = np.where(df["proj"] > 0, df["proj"] - shift, 0.0)
+    # A Questionable player's draws are centered on his points if he plays, and are 0 in a 1 - q_play
+    # share of games; "center" (lineup ranking, expected total) is the mean including the zeros
+    df["center_play"] = np.where(df["proj"] > 0, (base - shift) * q_mult, 0.0)
+    df["center"] = df["center_play"] * q_play
     df = df.drop(columns=["sleeper_opponent"]).reset_index(drop=True)
 
     draws = player_draws(df, ours_full, scoring)
@@ -123,8 +131,9 @@ def build_player_table(
 
 
 def player_draws(df: pd.DataFrame, ours_full: pd.DataFrame, scoring: dict[str, float]) -> np.ndarray:
-    """Simulated points per table row, centered on each row's center (the blend before its
-    median shift). Zero for players who will not play."""
+    """Simulated points per table row, centered on each row's center_play (the blend before its
+    median shift, times a Questionable player's production if he plays). Zero for players who
+    will not play, and for a Questionable player in a 1 - q_play share of games (decision 0017)."""
     seed = int(pd.Timestamp.now().strftime("%Y%m%d"))
     rng = np.random.default_rng(seed)
     draws = np.zeros((len(df), N_SIMS), dtype=np.float32)
@@ -142,19 +151,22 @@ def player_draws(df: pd.DataFrame, ours_full: pd.DataFrame, scoring: dict[str, f
             continue
         j = sim_index.get(row.sleeper_id)
         if sim_draws is not None and j is not None:
-            c, pos = np.array([row.center]), np.array([row.position])
+            c, pos = np.array([row.center_play]), np.array([row.position])
             one = stretch_tails(rescale(sim_draws[j : j + 1], c), c, pos, card.get("sim_tails"))
             one = mix_with_residuals(one, c, pos, card.get("residual_table"), card.get("range_mix"))
             draws[i] = one[0]
         elif table and row.position in table["resid"]:
             # No simulation (no NFL game yet): historical misses for his position and projection level
-            b = int(np.digitize(row.center, table["edges"]))
-            draws[i] = row.center + np.interp(
+            b = int(np.digitize(row.center_play, table["edges"]))
+            draws[i] = row.center_play + np.interp(
                 rng.random(N_SIMS), table["levels"], table["resid"][row.position][b]
             )
         else:
             sd = FALLBACK_SD.get(row.position, 6.0)
-            draws[i] = np.maximum(row.center + sd * rng.standard_normal(N_SIMS), -4.0)
+            draws[i] = np.maximum(row.center_play + sd * rng.standard_normal(N_SIMS), -4.0)
+        q_play = getattr(row, "q_play", 1.0)
+        if pd.notna(q_play) and q_play < 1:
+            draws[i, rng.random(N_SIMS) >= q_play] = 0.0  # games he sits
     return draws
 
 

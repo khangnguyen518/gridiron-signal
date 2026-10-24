@@ -4,7 +4,9 @@
 --                            The inactive list is public about 90 minutes before kickoff.
 --   expected_active_midweek: on the roster (ACT or INA) and not reported Out or Doubtful.
 --                            Uses only the injury report, as a lineup set midweek would.
--- The injury status is the last version known before kickoff (sports_db injuries history).
+-- The injury status is the last version known before kickoff (sports_db injuries history), with
+-- that report's last practice participation (DNP, Limited, Full) for Questionable modeling (0017).
+-- Sleeper's projection is joined so the backtest can score expected players who sat.
 with rosters as (
     select season, week, team, gsis_id, position, full_name, status as roster_status
     from {{ source('sports_db', 'stg_nflverse__rosters_weekly') }}
@@ -17,7 +19,16 @@ with rosters as (
 ),
 
 injuries as (
-    select season, week, gsis_id, report_status
+    select
+        season,
+        week,
+        gsis_id,
+        report_status,
+        case
+            when practice_status like 'Did Not%' then 'DNP'
+            when practice_status like 'Limited%' then 'Limited'
+            when practice_status like 'Full%' then 'Full'
+        end as practice_status
     from {{ source('sports_db', 'stg_nflverse__injuries_history') }}
     where game_type = 'REG'
         and season >= {{ var('first_season') }}
@@ -38,6 +49,13 @@ played as (
 depth as (
     select game_id, gsis_id, depth_position, depth_tier, depth_rank
     from {{ ref('int_player_game_depth') }}
+),
+
+sleeper as (
+    select x.gsis_id, sp.season, sp.week, sp.projected_points
+    from {{ ref('int_player_xwalk') }} as x
+    inner join {{ source('ff', 'int_weekly_projected_points') }} as sp
+        on x.sleeper_id = sp.player_id
 )
 
 select
@@ -51,13 +69,15 @@ select
     r.position,
     r.roster_status,
     i.report_status as injury_status,
+    i.practice_status,
     r.roster_status = 'ACT' and coalesce(i.report_status, '') != 'Out' as expected_active_lock,
     r.roster_status in ('ACT', 'INA')
         and coalesce(i.report_status, '') not in ('Out', 'Doubtful') as expected_active_midweek,
     p.gsis_id is not null as played,
     dc.depth_position,
     dc.depth_tier,
-    dc.depth_rank
+    dc.depth_rank,
+    sl.projected_points as sleeper_projected_points
 from rosters as r
 inner join games as g
     on r.season = g.season and r.week = g.week and r.team = g.team
@@ -67,3 +87,5 @@ left join played as p
     on g.game_id = p.game_id and r.gsis_id = p.gsis_id
 left join depth as dc
     on g.game_id = dc.game_id and r.gsis_id = dc.gsis_id
+left join sleeper as sl
+    on r.gsis_id = sl.gsis_id and r.season = sl.season and r.week = sl.week

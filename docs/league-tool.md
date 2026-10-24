@@ -59,7 +59,7 @@ shift differs by position, so ranking on medians would tilt FLEX picks (decision
 | Kicker or defense | Sleeper only |
 | Injury status Out, IR, PUP, Sus, NA or DNR | 0, flagged with the status |
 | Team on bye | 0, flagged "bye" |
-| Questionable | unchanged, flagged |
+| Questionable | blend x chance to play x production if playing, by his last practice (decision 0017); flagged "Questionable, plays N%". Ranges include the games he sits (p10 is often 0). |
 | Doubtful | unchanged, flagged; counted as not playing when renormalizing teammates |
 
 **Teammates of absent players.** Before projecting, each team's usage shares are renormalized
@@ -109,6 +109,8 @@ nested slot types that order gives the best total.
 ## Limits
 - Kicker and defense ranges are assumed Normal spreads, not backtested, and independent of their games.
 - Win probability assumes the opponent's lineup stays as set; it does not anticipate their changes.
-- Questionable players are not discounted, and their teammates are not adjusted for them.
+- A Questionable player's projection is his expected points before inactives post. Once he is confirmed
+  active (about 90 minutes before kickoff), his full projection applies; rerun after inactives.
+- Teammates of a Questionable player are not adjusted for his chance of sitting.
 - Blend weights were fit on full PPR. Other scoring still gets exact points.
 - Sleeper's current team decides where a player plays; a trade shows up as soon as Sleeper updates.

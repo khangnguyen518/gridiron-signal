@@ -76,12 +76,15 @@ INA, RES, PUP, SUS), 2010 onward: 141.8k rows.
 |---|---|
 | `roster_status` | nflverse weekly roster status |
 | `injury_status` | last injury report status known before kickoff, or null |
+| `practice_status` | that report's last practice participation: DNP, Limited, Full, or null (decision 0017) |
 | `expected_active_lock` | ACT and not Out: known after inactives post, about 90 minutes before kickoff |
 | `expected_active_midweek` | ACT or INA, and not Out or Doubtful: the injury report alone |
 | `played` | has a stat line in the game. An outcome, used only to add placeholder rows. |
+| `sleeper_projected_points` | Sleeper's stored projection that week, via `int_player_xwalk`; null before 2018 or unmatched |
 
 Checked 2016-2025: INA players played 0% of the time; ACT players reported Out played 0.1%.
-Test: unique `(game_id, gsis_id)`.
+Tests: unique `(game_id, gsis_id)`; `practice_status` in DNP, Limited, Full. Practice status is
+known for 99.6% of Questionable players in 2016-2018 and 98.1% in 2019-2025.
 
 ### Raw: `nflm_raw.kalshi_markets` and `nflm_raw.kalshi_game_lines`
 Written by `nflm record-lines` every hour on the VM, append-only, partitioned by
@@ -166,8 +169,10 @@ and to Sleeper's projection and actual through the crosswalk. Sleeper columns ar
   played; inactive players are not part of the error numbers.
 - **Positions.** A player's position is nflverse's position in that game. Live rows use the
   player's last nflverse position, not Sleeper's.
-- **Sleeper projections are backfilled.** They are probably Sleeper's final pregame version, which
-  makes the benchmark slightly harder than what a user saw midweek.
+- **Sleeper projections are backfilled, after inactives.** For Questionable regulars in 2019-2025,
+  a stored projection exists for 96% of those who played and 15% of those who sat (median 10.5 vs
+  3.1 points). So the stored history knows who sat: it makes Sleeper a slightly harder benchmark
+  than what a user saw midweek, and it cannot score players who sat (decision 0017).
 
 - **Kalshi history starts 2026-10-22 (player props 2026-10-23).** Earlier seasons have no recorded snapshots, and missed
   hours cannot be filled in. Snapshots after kickoff are recorded too (markets trade during the

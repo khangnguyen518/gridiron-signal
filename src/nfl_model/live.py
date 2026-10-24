@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import requests
 
-from nfl_model import config, data, lines, sleeper
+from nfl_model import config, data, lines, questionable, sleeper
 from nfl_model.availability import Renorm, add_roster_rows, add_team_usual, renormalize
 from nfl_model.backtest import VARIANTS, latest_run_dir, prepare
 from nfl_model.features import Params, add_player_features, add_team_features, season_priors
@@ -154,7 +154,7 @@ def project_week(
     # Who is expected to play, from Sleeper's injury status: the injury report, like the
     # backtest's midweek variant. Shares are renormalized over these players below.
     flag = VARIANTS[card.get("live_variant", "midweek")]
-    future[flag] = ~future.pop("injury_status").isin(INACTIVE_STATUSES)
+    future[flag] = ~future["injury_status"].isin(INACTIVE_STATUSES)
     roles = RoleParams(**card["roles"]) if "roles" in card else None
 
     priors = season_priors(pg)
@@ -202,4 +202,17 @@ def project_week(
     proj["blend_w"] = proj["position"].map({p: v["w"] for p, v in card["positions"].items()})
     # Median shift per position (decision 0016); cards from before it have none
     proj["blend_shift"] = proj["position"].map({p: v.get("shift", 0.0) for p, v in card["positions"].items()})
+    # Questionable players (decision 0017): Sleeper's status says who is Questionable now; the
+    # nflverse injury report in sports_db gives his last practice (Sleeper's practice field is empty)
+    status = data.load_player_status()
+    if "practice_status" in status:
+        proj = proj.merge(
+            status[["game_id", "gsis_id", "practice_status"]], on=["game_id", "gsis_id"], how="left"
+        )
+    else:  # a status table built before 0017: pooled Questionable rates, with a note
+        proj["practice_status"] = None
+        notes.append(
+            "No practice status in int_player_game_status yet: run `dbt build`; Questionable uses pooled rates."
+        )
+    proj["q_play"], proj["q_mult"] = questionable.factors(proj, card.get("questionable"))
     return proj, notes
