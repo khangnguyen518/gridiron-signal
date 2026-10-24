@@ -23,7 +23,7 @@ player usage        = team volume x player's recent share (targets, carries, att
 player stats        = usage x efficiency shrunk toward the position average
 player TDs          = team TDs x red-zone share
 points              = the league's own scoring_settings applied to the stat line
-blend               = w x ours + (1 - w) x Sleeper, w per position
+blend               = w x ours + (1 - w) x Sleeper + median shift, per position
 range, win prob     = 1,000 simulated games per player, mixed with history (10th-90th percentile)
 ```
 

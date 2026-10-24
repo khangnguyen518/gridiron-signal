@@ -201,13 +201,21 @@ def best_share_half_life(grid: pd.DataFrame) -> float:
     return float(grid.groupby("hl_share")["share_mae"].min().idxmin())
 
 
-def pick_blend_weight(train: pd.DataFrame, model_col: str) -> float:
-    """Weight on our model (rest on Sleeper) that minimizes MAE on earlier seasons."""
+def pick_blend_weight(train: pd.DataFrame, model_col: str, shift: bool = True) -> tuple[float, float]:
+    """Weight on our model (rest on Sleeper) that minimizes MAE on earlier seasons, then a constant
+    shift: the median miss at that weight, the MAE-optimal constant. Fantasy points are right-skewed,
+    so the median sits below the mean (decision 0016, amending 0006). The weight is picked before
+    the shift, so one constant per position never reorders players within it.
+    shift=False gives the blend before 0016, with no shift."""
     maes = [
         _mae(w * train[model_col] + (1 - w) * train["sleeper_projected_points"], train["fantasy_points"])
         for w in BLEND_WEIGHTS
     ]
-    return float(BLEND_WEIGHTS[int(np.argmin(maes))])
+    w = float(BLEND_WEIGHTS[int(np.argmin(maes))])
+    if not shift:
+        return w, 0.0
+    blend = w * train[model_col] + (1 - w) * train["sleeper_projected_points"]
+    return w, round(float(np.median(train["fantasy_points"] - blend)), 3)
 
 
 def close_call_counts(df: pd.DataFrame, col: str) -> pd.DataFrame:
@@ -247,19 +255,29 @@ def evaluate(proj: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     df = df[df["season"] >= BLEND_START]
     results, scored = [], []
     for (position, season), test in df[df["season"].isin(TEST_SEASONS)].groupby(["position", "season"]):
-        # No level calibration: tried a linear fit (actual ~ a + b * projection) and it raised
-        # MAE, because it moves projections toward the mean of right-skewed points, not the median.
+        # The only level adjustment is the median shift picked with the weight (0016). A linear
+        # fit (actual ~ a + b * projection) raised MAE: it moves toward the mean, not the median (0006).
         train = df[(df["position"] == position) & (df["season"] < season)]
         test = test.copy()
-        w_opp = pick_blend_weight(train, "opp_points")
-        w_share = pick_blend_weight(train, "share_points")
-        test["blend_points"] = w_opp * test["opp_points"] + (1 - w_opp) * test["sleeper_projected_points"]
-        test["blend_share_points"] = (
-            w_share * test["share_points"] + (1 - w_share) * test["sleeper_projected_points"]
-        )
+        sleeper = test["sleeper_projected_points"]
+        w_opp, c_opp = pick_blend_weight(train, "opp_points")
+        w_share, c_share = pick_blend_weight(train, "share_points")
+        w_raw, _ = pick_blend_weight(train, "opp_points", shift=False)
+        test["blend_points"] = w_opp * test["opp_points"] + (1 - w_opp) * sleeper + c_opp
+        test["blend_share_points"] = w_share * test["share_points"] + (1 - w_share) * sleeper + c_share
+        test["blend_unshifted_points"] = w_raw * test["opp_points"] + (1 - w_raw) * sleeper
         scored.append(test)
         results.append(
-            {"position": position, "season": season, "n": len(test), "w_opp": w_opp, "w_share": w_share}
+            {
+                "position": position,
+                "season": season,
+                "n": len(test),
+                "w_opp": w_opp,
+                "shift_opp": c_opp,
+                "w_share": w_share,
+                "shift_share": c_share,
+                "w_unshifted": w_raw,
+            }
         )
     scored = pd.concat(scored, ignore_index=True)
     return pd.DataFrame(results), scored.assign(startable=startable(scored))
@@ -289,6 +307,7 @@ MODELS = {
     "opportunity": "opp_points",
     "blend_share": "blend_share_points",
     "blend_opportunity": "blend_points",
+    "blend_unshifted": "blend_unshifted_points",  # the blend before decision 0016
 }
 
 
@@ -320,6 +339,7 @@ COMPARISONS = [
     ("blend_opportunity", "sleeper"),
     ("opportunity", "sleeper"),
     ("blend_opportunity", "blend_share"),
+    ("blend_opportunity", "blend_unshifted"),
 ]
 VARIANT_MODELS = ["opportunity", "blend_opportunity"]
 
@@ -363,12 +383,15 @@ def significance(scored: dict[str, pd.DataFrame]) -> pd.DataFrame:
 
 
 def blend_weights(proj: pd.DataFrame) -> dict[str, dict[str, float]]:
-    """Per-position blend weight fit on every season with Sleeper projections (2018 onward)."""
+    """Per-position blend weight and median shift fit on every season with Sleeper projections
+    (2018 onward)."""
     df = proj.dropna(subset=["sleeper_projected_points"])
     df = df[df["season"] >= BLEND_START]
-    return {
-        position: {"w": pick_blend_weight(rows, "opp_points")} for position, rows in df.groupby("position")
-    }
+    out = {}
+    for position, rows in df.groupby("position"):
+        w, c = pick_blend_weight(rows, "opp_points")
+        out[position] = {"w": w, "shift": c}
+    return out
 
 
 def tune_roles(
@@ -502,6 +525,8 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
     absence_summary.to_csv(out_dir / "summary_key_absence.csv", index=False)
     by_season.to_csv(out_dir / "mae_by_season.csv")
     sig.to_csv(out_dir / "significance.csv", index=False)
+    # Every scored player-game of the live variant, for analyses of where the blend misses
+    scored_all[LIVE_VARIANT].to_parquet(out_dir / "scored.parquet", index=False)
     (out_dir / "params.json").write_text(
         json.dumps({**asdict(params), "hl_share_points_share": hl_share_baseline}, indent=2)
     )
@@ -514,7 +539,7 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
 
     pd.set_option("display.width", 180)
     cols = ["variant", "model", "n", "mae", "bias", "rank_corr", "close_call_acc"]
-    pick = summary["model"].isin(["sleeper", "opportunity", "blend_opportunity"])
+    pick = summary["model"].isin(["sleeper", "opportunity", "blend_unshifted", "blend_opportunity"])
     print("\n=== All rows, ALL positions, 2019-2025 ===")
     print(
         summary[pick & (summary["rows"] == "all") & (summary["position"] == "ALL")][cols]
@@ -533,7 +558,7 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
         .round(4)
         .to_string(index=False)
     )
-    a_pick = absence_summary["model"].isin(["sleeper", "opportunity", "blend_opportunity"])
+    a_pick = absence_summary["model"].isin(["sleeper", "opportunity", "blend_unshifted", "blend_opportunity"])
     print("\n=== Players on teams with a fresh key absence, relevant rows ===")
     print(
         absence_summary[a_pick & (absence_summary["rows"] == "relevant")][["position"] + cols]

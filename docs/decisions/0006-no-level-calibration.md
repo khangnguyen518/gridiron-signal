@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-21
+- Amended by: 0016 (a median shift per position after blending)
 
 ## Context
 The opportunity model runs about 0.8 points low for QBs. A per-position linear calibration

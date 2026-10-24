@@ -4,12 +4,13 @@ for one week, scored with the league's own scoring settings.
     uv run nflm league --league-id 123 --user "display name" --week 7
 
 Projection per player:
-    blend = w * ours + (1 - w) * Sleeper, with w per position from the backtest.
+    blend = w * ours + (1 - w) * Sleeper + shift, with w and the median shift per position
+    from the backtest (decision 0016).
     Only one source available -> that source. Out / IR / suspended / bye -> 0.
 Kickers and defenses use Sleeper's projection only.
 
 Ranges and win probability come from the game simulation (simulate.py): every player
-gets draws centered on his blended projection, with teammates and opponents sharing
+gets draws centered on his blended projection before the median shift, with teammates and opponents sharing
 game draws. Players the simulation cannot cover (kickers, defenses, rookies with no
 NFL game) get Normal draws around the projection with a position spread.
 """
@@ -66,6 +67,7 @@ def build_player_table(
             "line_source",
             "opp_points",
             "blend_w",
+            "blend_shift",
             "target_share",
             "carry_share",
             "targets_hat",
@@ -93,10 +95,10 @@ def build_player_table(
     df = df[df["sleeper"].notna() | df["ours"].notna()]
 
     w = df["blend_w"].fillna(0.0)
+    both = df["ours"].notna() & df["sleeper"].notna()
+    shift = np.where(both, df["blend_shift"].fillna(0.0), 0.0)
     df["proj"] = np.where(
-        df["ours"].notna() & df["sleeper"].notna(),
-        w * df["ours"] + (1 - w) * df["sleeper"],
-        df["sleeper"].fillna(df["ours"]),
+        both, w * df["ours"] + (1 - w) * df["sleeper"] + shift, df["sleeper"].fillna(df["ours"])
     )
     df["opponent"] = df["opponent"].fillna(df["sleeper_opponent"])
     df["role_label"] = df["role_label"].replace("", np.nan).fillna(df["position"])  # K, DEF, no history
@@ -109,6 +111,9 @@ def build_player_table(
     df.loc[on_bye, "flag"] = "bye"
     df.loc[is_out | on_bye, "proj"] = 0.0
     df["proj"] = df["proj"].round(2)
+    # Ranges are centered on the blend before its median shift: the simulation sets each player's
+    # mean, and the shifted blend estimates the median, which sits below it (decision 0016)
+    df["center"] = np.where(df["proj"] > 0, df["proj"] - shift, 0.0)
     df = df.drop(columns=["sleeper_opponent"]).reset_index(drop=True)
 
     draws = player_draws(df, ours_full, scoring)
@@ -118,8 +123,8 @@ def build_player_table(
 
 
 def player_draws(df: pd.DataFrame, ours_full: pd.DataFrame, scoring: dict[str, float]) -> np.ndarray:
-    """Simulated points per table row, centered on each row's proj. Zero for players
-    who will not play."""
+    """Simulated points per table row, centered on each row's center (the blend before its
+    median shift). Zero for players who will not play."""
     seed = int(pd.Timestamp.now().strftime("%Y%m%d"))
     rng = np.random.default_rng(seed)
     draws = np.zeros((len(df), N_SIMS), dtype=np.float32)
@@ -137,19 +142,19 @@ def player_draws(df: pd.DataFrame, ours_full: pd.DataFrame, scoring: dict[str, f
             continue
         j = sim_index.get(row.sleeper_id)
         if sim_draws is not None and j is not None:
-            c, pos = np.array([row.proj]), np.array([row.position])
+            c, pos = np.array([row.center]), np.array([row.position])
             one = stretch_tails(rescale(sim_draws[j : j + 1], c), c, pos, card.get("sim_tails"))
             one = mix_with_residuals(one, c, pos, card.get("residual_table"), card.get("range_mix"))
             draws[i] = one[0]
         elif table and row.position in table["resid"]:
             # No simulation (no NFL game yet): historical misses for his position and projection level
-            b = int(np.digitize(row.proj, table["edges"]))
-            draws[i] = row.proj + np.interp(
+            b = int(np.digitize(row.center, table["edges"]))
+            draws[i] = row.center + np.interp(
                 rng.random(N_SIMS), table["levels"], table["resid"][row.position][b]
             )
         else:
             sd = FALLBACK_SD.get(row.position, 6.0)
-            draws[i] = np.maximum(row.proj + sd * rng.standard_normal(N_SIMS), -4.0)
+            draws[i] = np.maximum(row.center + sd * rng.standard_normal(N_SIMS), -4.0)
     return draws
 
 
@@ -211,7 +216,10 @@ def optimal_lineup(roster: pd.DataFrame, slots: list[str]) -> pd.DataFrame:
     """Fill the most restrictive slots first with the best eligible player. For Sleeper's
     nested slot types (position, flex, superflex) this greedy order is optimal."""
     order = sorted(slots, key=lambda s: len(SLOT_ELIGIBLE.get(s, {s})))
-    pool = roster.sort_values("proj", ascending=False).copy()
+    # Rank on the blend before its median shift: a lineup total sums means, and the shift differs
+    # by position, so ranking on the shifted projection would tilt FLEX picks (decision 0016)
+    key = "center" if "center" in roster else "proj"
+    pool = roster.sort_values(key, ascending=False).copy()
     picks = []
     for slot in order:
         eligible = pool[pool["position"].isin(SLOT_ELIGIBLE.get(slot, {slot}))]
@@ -410,7 +418,8 @@ def run(league_id: str, user: str | None, week: int | None, discord: bool = Fals
             print(f"  {slot}: start {inn} over {out}")
     print("\n=== Best lineup (by projection; p10-p90 is the 80% range) ===")
     print(lineup[["slot"] + cols].round(2).to_string(index=False))
-    print(f"Projected total: {lineup['proj'].sum():.1f}")
+    total = lineup["center"].sum() if "center" in lineup else lineup["proj"].sum()
+    print(f"Expected total: {total:.1f}")  # sum of means; each proj shown is a median (0016)
     print("\n=== Bench ===")
     print(bench[cols].round(2).to_string(index=False))
     print("\n=== Close calls (within 2 points) ===")

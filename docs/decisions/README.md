@@ -16,7 +16,7 @@ A new decision gets the next number. A changed decision gets a new record that m
 | 0003 | dbt for joins, Python for recency features | Accepted |
 | 0004 | Sleeper to gsis crosswalk from nflverse weekly rosters | Accepted |
 | 0005 | Tune on 2012-2017, walk-forward test on 2019-2025 | Accepted |
-| 0006 | No level calibration before blending | Accepted |
+| 0006 | No level calibration before blending | Accepted, amended by 0016 |
 | 0007 | Project stat lines, score with each league's settings | Accepted |
 | 0008 | Late-stored lines warn instead of failing | Accepted |
 | 0009 | Renormalize usage shares by who is expected to play | Accepted |
@@ -26,6 +26,7 @@ A new decision gets the next number. A changed decision gets a new record that m
 | 0013 | Play calling and red-zone rates for rushing only | Accepted |
 | 0014 | Depth chart roles and team role curves | Accepted |
 | 0015 | Record Kalshi player props hourly, append-only | Accepted |
+| 0016 | Shift the blend to the median, per position | Accepted |
 
 ## Template
 ```

@@ -282,8 +282,8 @@ def main(refresh: bool = False) -> None:
                 }
             )
 
-    # The same simulation shape around the blend (what the league tool shows)
-    keyed = scored.set_index(["game_id", "gsis_id"])["blend_points"]
+    # The same simulation shape around the blend, before its median shift: the live center (0016)
+    keyed = scored.set_index(["game_id", "gsis_id"])["blend_unshifted_points"]
     has_blend = test.set_index(["game_id", "gsis_id"]).index.isin(keyed.index)
     tb = test[has_blend].copy()
     tb["blend_points"] = keyed.loc[list(zip(tb["game_id"], tb["gsis_id"]))].to_numpy()

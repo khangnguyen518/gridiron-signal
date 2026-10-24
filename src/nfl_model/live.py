@@ -200,4 +200,6 @@ def project_week(
     proj = project(feats, predict_volume(fit_volume_models(train), this_week), scoring)
 
     proj["blend_w"] = proj["position"].map({p: v["w"] for p, v in card["positions"].items()})
+    # Median shift per position (decision 0016); cards from before it have none
+    proj["blend_shift"] = proj["position"].map({p: v.get("shift", 0.0) for p, v in card["positions"].items()})
     return proj, notes

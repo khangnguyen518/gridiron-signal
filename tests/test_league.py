@@ -50,3 +50,21 @@ def test_close_calls_report_win_probability_both_ways():
     bench = r[~r["sleeper_id"].isin(lineup["sleeper_id"])]
     calls = close_calls(lineup, bench, [6], draws)
     assert {"win_as_is", "win_if_swapped"} <= set(calls.columns)
+
+
+def test_lineup_ranks_on_the_unshifted_center():
+    import pandas as pd
+
+    from nfl_model.league import optimal_lineup
+
+    # The WR's shifted projection is lower, but his unshifted center is higher: he takes the FLEX
+    roster = pd.DataFrame(
+        [
+            {"sleeper_id": "1", "name": "WR1", "position": "WR", "proj": 10.0, "center": 10.8},
+            {"sleeper_id": "2", "name": "WR2", "position": "WR", "proj": 9.2, "center": 10.04},
+            {"sleeper_id": "3", "name": "TE1", "position": "TE", "proj": 11.0, "center": 11.46},
+            {"sleeper_id": "4", "name": "TE2", "position": "TE", "proj": 9.5, "center": 9.96},
+        ]
+    )
+    lineup = optimal_lineup(roster, ["WR", "TE", "FLEX"])
+    assert lineup.set_index("slot")["name"]["FLEX"] == "WR2"

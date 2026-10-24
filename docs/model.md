@@ -13,7 +13,7 @@ player usage         = team volume x player's recent share                   fea
 player stat line     = usage x efficiency shrunk to the position average
 player TDs           = team TDs x red-zone share
 points               = league scoring on the stat line                       scoring.py
-blend                = w x ours + (1 - w) x Sleeper, w per position          backtest.py
+blend                = w x ours + (1 - w) x Sleeper + shift, per position     backtest.py
 ```
 
 Two projections are built. **Points share** is a one-line baseline. **Opportunity** is the
@@ -176,20 +176,23 @@ conversions and yardage bonuses are not projected.
 ## Blend
 
 ```
-blend = w x opportunity + (1 - w) x Sleeper
+blend = w x opportunity + (1 - w) x Sleeper + shift
 ```
 
-`w` is picked per position on a 0.05 grid to minimize MAE on earlier seasons. Live weights
-come from all seasons 2018-2025 with availability renormalization (`model_card.json`):
+`w` is picked per position on a 0.05 grid to minimize MAE on earlier seasons. Then `shift` is the
+median of (actual - blend) at that `w` on the same seasons: the constant that minimizes MAE.
+Fantasy points are right-skewed, so the median sits below the mean and the shift is negative
+(decision 0016). Picking `w` first means one constant per position never reorders players within
+it. Live values come from all seasons 2018-2025 with availability renormalization (`model_card.json`):
 
-| Position | w on our model |
-|---|---|
-| QB | 0.60 |
-| TE | 0.45 |
-| WR | 0.45 |
-| RB | 0.20 |
+| Position | w on our model | shift (points) |
+|---|---|---|
+| QB | 0.60 | -0.60 |
+| TE | 0.45 | -0.46 |
+| WR | 0.45 | -0.84 |
+| RB | 0.20 | -0.73 |
 
-When only one projection exists (a rookie with no NFL game, a K or DEF), that one is used.
+When only one projection exists (a rookie with no NFL game, a K or DEF), that one is used, unshifted.
 
 ## Tuned parameters (current model card)
 
@@ -228,7 +231,8 @@ draw, so teammates and opponents share the same game:
 | Points | the league's scoring on every simulated stat line |
 
 Then, per player:
-1. **Center** the draws on the projection in use (the blend, live) by scaling.
+1. **Center** the draws on the projection in use by scaling. Live, that is the blend before its
+   median shift: scaling sets each player's mean, and the shifted blend is a median (decision 0016).
 2. **Stretch tails** per position (downside, upside): QB 1.1, 0.9; RB 1.0, 1.1; WR 1.0, 1.1; TE 1.0, 1.1.
 3. **Mix with history.** A draw at percentile u becomes w x draw + (1 - w) x (projection + the
    historical miss at percentile u for that position and projection quintile). Weights on the

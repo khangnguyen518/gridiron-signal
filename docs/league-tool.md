@@ -50,7 +50,11 @@ CSV copies of each table, plus every player's projections, go to
 
 | Situation | `proj` |
 |---|---|
-| Both projections exist | `w x ours + (1 - w) x Sleeper`, w per position from the model card |
+| Both projections exist | `w x ours + (1 - w) x Sleeper + shift`, w and the median shift per position from the model card (decision 0016) |
+
+The shown projection is the shifted blend, a median. Lineup ranking, the expected total, ranges and
+win probabilities use the blend before the shift, a mean: a lineup's total sums means, and the
+shift differs by position, so ranking on medians would tilt FLEX picks (decision 0016).
 | Rookie with no NFL game yet | Sleeper only (flag "no history: Sleeper only") |
 | Kicker or defense | Sleeper only |
 | Injury status Out, IR, PUP, Sus, NA or DNR | 0, flagged with the status |
