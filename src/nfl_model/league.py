@@ -4,8 +4,9 @@ for one week, scored with the league's own scoring settings.
     uv run nflm league --league-id 123 --user "display name" --week 7
 
 Projection per player:
-    blend = w * ours + (1 - w) * Sleeper + shift, with w and the median shift per position
-    from the backtest (decision 0016).
+    blend = w * ours + (1 - w) * Sleeper + shift + matchup, with w and the median shift per
+    position from the backtest (decision 0016) and the opponent's points allowed to the
+    player's position times a fitted weight (decision 0018).
     Only one source available -> that source. Out / IR / suspended / bye -> 0.
 Kickers and defenses use Sleeper's projection only.
 
@@ -68,6 +69,7 @@ def build_player_table(
             "opp_points",
             "blend_w",
             "blend_shift",
+            "blend_matchup",
             "q_play",
             "q_mult",
             "target_share",
@@ -99,7 +101,11 @@ def build_player_table(
     w = df["blend_w"].fillna(0.0)
     both = df["ours"].notna() & df["sleeper"].notna()
     shift = np.where(both, df["blend_shift"].fillna(0.0), 0.0)
-    base = np.where(both, w * df["ours"] + (1 - w) * df["sleeper"] + shift, df["sleeper"].fillna(df["ours"]))
+    # Opponent points allowed to his position (decision 0018), only on blended rows like the shift
+    match = np.where(both, df["blend_matchup"].fillna(0.0), 0.0)
+    base = np.where(
+        both, w * df["ours"] + (1 - w) * df["sleeper"] + shift + match, df["sleeper"].fillna(df["ours"])
+    )
     # Questionable players (decision 0017): expected points = chance to play x production when playing
     q_play, q_mult = df["q_play"].fillna(1.0).to_numpy(), df["q_mult"].fillna(1.0).to_numpy()
     df["proj"] = base * q_play * q_mult

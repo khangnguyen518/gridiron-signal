@@ -13,7 +13,7 @@ player usage         = team volume x player's recent share                   fea
 player stat line     = usage x efficiency shrunk to the position average
 player TDs           = team TDs x red-zone share
 points               = league scoring on the stat line                       scoring.py
-blend                = w x ours + (1 - w) x Sleeper + shift, per position     backtest.py
+blend                = w x ours + (1 - w) x Sleeper + shift + matchup          backtest.py, matchup.py
 ```
 
 Two projections are built. **Points share** is a one-line baseline. **Opportunity** is the
@@ -196,7 +196,7 @@ conversions and yardage bonuses are not projected.
 ## Blend
 
 ```
-blend = w x opportunity + (1 - w) x Sleeper + shift
+blend = w x opportunity + (1 - w) x Sleeper + shift + matchup
 ```
 
 `w` is picked per position on a 0.05 grid to minimize MAE on earlier seasons. Then `shift` is the
@@ -213,6 +213,17 @@ it. Live values come from all seasons 2018-2025 with availability renormalizatio
 | RB | 0.20 | -0.73 |
 
 When only one projection exists (a rookie with no NFL game, a K or DEF), that one is used, unshifted.
+
+**Matchup** (`matchup.py`, decision 0018): weight x the opponent's points allowed to the player's
+position. For every player-game, his fantasy points minus his own prior average (half-life 6 games)
+is how much better or worse he did than usual; a defense's points allowed to a position is the
+recency-weighted mean of that over the opposing players at it in its earlier games (half-life 8,
+shrunk with 4 pseudo-players of 0). Measuring against each opposing player's own average keeps a
+defense from being credited for the offenses it happened to face. The weight is a median
+regression of the blend's misses on this signal without an intercept (so the shift's level is
+untouched): 0.158 live, from 2019-2025. Typical size 0.14 points; a defense that allowed 3 points
+over expectation to TEs adds about half a point to a TE facing it. Efficiency allowed and passing
+volume allowed were tested too and added nothing (`docs/backtest.md`).
 
 ## Tuned parameters (current model card)
 
@@ -280,4 +291,4 @@ than either number alone.
 - Rookies or new signings with no NFL game absorb usage in reality but are not in S.
 - Correlation between kickers or defenses and the rest of the game (they are drawn independently).
 - Kickers and defenses (Sleeper only).
-- Opponent defense strength, weather, home field beyond what the lines already price in.
+- Weather and home field beyond what the lines already price in. The opposing defense enters through the lines, its play-calling and red-zone rates, and points allowed by position (0018), not through efficiency allowed.

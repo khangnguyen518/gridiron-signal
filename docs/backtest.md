@@ -1,10 +1,12 @@
 # Backtest
 
 Method, results and findings for the run behind the current model card
-(`output/backtests/20261024_110340/`: tuned parameters from `20261021_210351`, with team
+(`output/backtests/20261024_131032/`: tuned parameters from `20261021_210351`, with team
 play-calling and red-zone inputs (decision 0013), depth chart roles (decision 0014), the median
-shift after blending (decision 0016) and the Questionable adjustment (decision 0017)). Played-only
-results are identical to `20261024_000432`. Rerun with `uv run nflm backtest`.
+shift after blending (decision 0016), the Questionable adjustment (decision 0017) and opponent
+points allowed by position (decision 0018)). The matchup term moves the blend by at most 0.005
+MAE, so the breakdown tables after the first one show the blend before it (`20261024_000432`);
+"Opponent points allowed" below has the matchup results. Rerun with `uv run nflm backtest`.
 
 ## Method
 
@@ -61,7 +63,8 @@ out after Sleeper projected him is not in the ranking.
 | Opportunity | 4.617 | 5.589 | 0.553 | 54.0% |
 | Blend: points share + Sleeper | 4.483 | 5.502 | 0.572 | 54.5% |
 | Blend: opportunity + Sleeper, before the median shift | 4.511 | 5.533 | 0.576 | 54.7% |
-| **Blend: opportunity + Sleeper** | **4.458** | **5.485** | **0.576** | **54.7%** |
+| Blend: opportunity + Sleeper, before the matchup term | 4.458 | 5.485 | 0.576 | 54.7% |
+| **Blend: opportunity + Sleeper** | **4.456** | **5.480** | **0.577** | **54.9%** |
 
 ### Availability adjustment: before and after
 
@@ -175,6 +178,21 @@ Our model alone vs Sleeper on startable rows: MAE -0.001 (-0.051 to +0.050), clo
 `significance.csv` has 512 comparisons, and many are significant. Read the rows above first:
 with that many tests, a few small p-values will be luck. The intervals hold blend weights and
 tuned parameters fixed, so they slightly understate the full uncertainty.
+
+### Opponent points allowed (decision 0018)
+
+Blend with the matchup term minus the blend before it, 2019-2025:
+
+| Rows | MAE | Close calls |
+|---|---|---|
+| Relevant | -0.0044 (-0.0073 to -0.0017) | +0.16 pts (+0.03 to +0.28) |
+| Startable | -0.0035 (-0.0076 to +0.0005), p = 0.10 | +0.02 pts (-0.18 to +0.20) |
+| All | -0.0013 (-0.0034 to +0.0006), p = 0.19 | |
+
+Weight by test season (fit on 2019 to S-1): 2020 0.26, 2021 0.25, 2022 0.21, 2023 0.20,
+2024 0.20, 2025 0.17; live 0.158. By season the gain is uneven: five of six seasons slightly
+better, none clearly, 2024 slightly worse (+0.0034, p = 0.08). Against Sleeper, relevant-player
+close calls go from +0.51 to +0.67 points (+0.30 to +1.04).
 
 ### Questionable players and players who sat (decision 0017)
 
@@ -418,6 +436,8 @@ higher because the blend rows are a different set; its coverage is what matters 
 | League-median usual totals per position | blend 4.528 vs 4.525 | Pushed teams toward league style (a pocket QB got 1.74x carries). Replaced by each team's own usual. |
 | Simulation ranges alone | pinball 1.5407 vs 1.5306 mixed | Too narrow at QB, too few big games overall. Kept for correlation, mixed with history for each player's range. |
 | Opponent coverage (man vs zone) x receiver's past man/zone split, as an adjustment to WR and TE projections (one-off analysis, 2026-10-22, nflverse participation coverage labels 2018-2025, not loaded anywhere) | Sleeper's misses vs predicted edge, slope -0.37 (-1.43 to +0.71) for the efficiency split and -0.03 (-0.72 to +0.65) for the target-share split; out of sample (fit 2019-2021, test 2022-2025) MAE change +0.0002 and -0.0008, both noise | League-wide, man coverage costs WRs about 0.08 points per target against zone after adjusting for situation (lower catch rate, more TDs). A receiver's man/zone efficiency split does not repeat (season to season r = +0.06); his target-share split does (r = +0.33) but is about 3 points of share, so even a defense that plays 10 points more man than average moves him by under 0.2 points. The coverage data is CC BY-SA and excluded from sports_db; using it as a model input would need its own decision record. |
+| Opponent efficiency allowed: yards per target, catch rate and yards per carry allowed above the opposing players' own prior rates (one-off analysis, 2026-10-24) | Walk-forward against a constant-only adjustment, 2020-2025: relevant MAE -0.0007 (-0.0045 to +0.0034), close calls -0.03 pts; startable MAE -0.0020 (-0.0092 to +0.0053) | Noise; the fitted weights flip sign (catch rate negative). Points allowed by position, tested alongside, was kept (0018). |
+| Opponent passing volume allowed: pass attempts above the offense's own prior average (one-off analysis, 2026-10-24) | Relevant MAE -0.0006 (-0.0040 to +0.0026), close calls +0.00 pts; startable MAE +0.0011 | Matches decision 0013: opponent effects on passing volume add nothing beyond the lines. |
 | Target quality from play-by-play: expected PPR per target (air yards x field position, fit 2012-2017), PPR over expected, air-yards share minus target share, end-zone target share (one-off analysis, 2026-10-23) | Walk-forward median-regression adjustment to the blend's misses, 2020-2025, against a constant-only adjustment: startable MAE +0.001 (-0.007 to +0.009), close calls +0.10 pts (-0.23 to +0.45); relevant MAE +0.001 | The blend, through Sleeper, already prices target quality: the fitted weights came out negative. The constant-only adjustment was the real gain and became the median shift (0016). |
 | Player game script: each player's target and carry share when trailing by 8+, within 7 and leading by 8+, times the score mix the spread predicts (one-off analysis, 2026-10-23) | Against the constant-only adjustment: startable MAE +0.002 (+0.000 to +0.003), close calls -0.17 pts (-0.27 to -0.07), slightly worse | The spread does predict script (r = +0.30 with the share of plays leading), but the predicted share changes are about 0.1 points per player, and what signal there is the blend already has. |
 | Blend weight and median shift picked together (0016 alternative) | MAE about the same as weight first (-0.057 vs -0.054 on all rows), startable close calls -0.12 pts (p = 0.07) | Picking them together moved the weights (QB 0.60 to 0.50), which reorders players. Weight first, then the shift, keeps every start/sit order. |
@@ -429,7 +449,7 @@ higher because the blend rows are a different set; its coverage is what matters 
 | `tuning_grid.csv` | every half-life and shrinkage setting with opportunity and points-share MAE |
 | `renorm_grid.csv` | every availability strength setting, per variant |
 | `params.json` | chosen half-lives and shrinkage |
-| `blend_weights.csv` | weight and median shift per position, test season and variant, plus the weight without a shift |
+| `blend_weights.csv` | weight and median shift per position, test season and variant, the weight without a shift, and the season's matchup weight |
 | `mae_by_season.csv` | MAE per model, season and variant |
 | `summary.csv` | every metric by row set, position, model and variant |
 | `summary_key_absence.csv` | the same for players on teams with a fresh key absence |

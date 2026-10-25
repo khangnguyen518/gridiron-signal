@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import requests
 
-from nfl_model import config, data, lines, questionable, sleeper
+from nfl_model import config, data, lines, matchup, questionable, sleeper
 from nfl_model.availability import Renorm, add_roster_rows, add_team_usual, renormalize
 from nfl_model.backtest import VARIANTS, latest_run_dir, prepare
 from nfl_model.features import Params, add_player_features, add_team_features, season_priors
@@ -202,6 +202,11 @@ def project_week(
     proj["blend_w"] = proj["position"].map({p: v["w"] for p, v in card["positions"].items()})
     # Median shift per position (decision 0016); cards from before it have none
     proj["blend_shift"] = proj["position"].map({p: v.get("shift", 0.0) for p, v in card["positions"].items()})
+    # Opponent points allowed by position (decision 0018), from every defense's games before this week
+    upcoming = wk[["game_id", "team", "kickoff_utc"]].rename(columns={"team": "defense"})
+    allowed = matchup.points_allowed(pg[pg["kickoff_utc"] < wk["kickoff_utc"].min()], upcoming)
+    weight = card.get("matchup", {}).get("weight", 0.0)
+    proj["blend_matchup"] = weight * matchup.player_signal(proj, allowed)
     # Questionable players (decision 0017): Sleeper's status says who is Questionable now; the
     # nflverse injury report in sports_db gives his last practice (Sleeper's practice field is empty)
     status = data.load_player_status()

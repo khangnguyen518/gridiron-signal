@@ -50,7 +50,7 @@ CSV copies of each table, plus every player's projections, go to
 
 | Situation | `proj` |
 |---|---|
-| Both projections exist | `w x ours + (1 - w) x Sleeper + shift`, w and the median shift per position from the model card (decision 0016) |
+| Both projections exist | `w x ours + (1 - w) x Sleeper + shift + matchup`, w and the median shift per position from the model card (decision 0016); matchup = weight x the opponent's points allowed to his position (decision 0018) |
 
 The shown projection is the shifted blend, a median. Lineup ranking, the expected total, ranges and
 win probabilities use the blend before the shift, a mean: a lineup's total sums means, and the

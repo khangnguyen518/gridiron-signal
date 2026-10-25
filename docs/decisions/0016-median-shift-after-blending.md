@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-24
 - Amends: 0006
+- Amended by: 0018 (opponent points allowed, a second adjustment after the blend)
 
 ## Context
 0006 rejected a least-squares calibration (actual ~ a + b x projection) because it pulls toward

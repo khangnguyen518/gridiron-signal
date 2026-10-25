@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from nfl_model import config, data, questionable
+from nfl_model import config, data, matchup, questionable
 from nfl_model.availability import Renorm, add_roster_rows, add_team_usual, centers, key_absence, renormalize
 from nfl_model.features import Params, add_player_features, add_team_features, season_priors
 from nfl_model.model import fit_volume_models, predict_volume, project
@@ -288,7 +288,19 @@ def evaluate(proj: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
             }
         )
     scored = pd.concat(scored, ignore_index=True)
-    return pd.DataFrame(results), scored.assign(startable=startable(scored))
+    results = pd.DataFrame(results)
+    scored["blend_no_matchup_points"] = scored["blend_points"]
+    if "matchup_points" in scored:
+        # Opponent points allowed (0018): weight for season S from the blend's misses before S
+        weights = {}
+        for season in sorted(scored["season"].unique()):
+            train = scored[scored["season"] < season]
+            weights[season] = matchup.fit_weight(
+                train["fantasy_points"] - train["blend_no_matchup_points"], train["matchup_points"]
+            )
+        scored["blend_points"] += scored["season"].map(weights) * scored["matchup_points"]
+        results["w_matchup"] = results["season"].map(weights)
+    return results, scored.assign(startable=startable(scored))
 
 
 def startable(df: pd.DataFrame) -> pd.Series:
@@ -316,6 +328,7 @@ MODELS = {
     "blend_share": "blend_share_points",
     "blend_opportunity": "blend_points",
     "blend_unshifted": "blend_unshifted_points",  # the blend before decision 0016
+    "blend_no_matchup": "blend_no_matchup_points",  # the blend before decision 0018
 }
 
 
@@ -348,6 +361,7 @@ COMPARISONS = [
     ("opportunity", "sleeper"),
     ("blend_opportunity", "blend_share"),
     ("blend_opportunity", "blend_unshifted"),
+    ("blend_opportunity", "blend_no_matchup"),
 ]
 VARIANT_MODELS = ["opportunity", "blend_opportunity"]
 
@@ -507,6 +521,12 @@ def model_card(params: Params, variants: dict[str, dict], questionable_table: di
         "center": live["center"],
         "roles": live["roles"],
         "positions": live["positions"],
+        "matchup": {
+            "weight": live.get("matchup_weight", 0.0),
+            "half_life_player": matchup.HL_PLAYER,
+            "half_life_defense": matchup.HL_DEFENSE,
+            "pseudo_players": matchup.K_PLAYERS,
+        },
         "variants": variants,
         **({"questionable": questionable_table} if questionable_table else {}),
     }
@@ -583,9 +603,11 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
                 sat_out=True,
             )
 
+    allowed = matchup.points_allowed(pg)
     summaries, absence, weights_all, by_season_all, scored_all = [], [], [], [], {}
     for name, proj in projections.items():
         proj["share_points"] = share_points.loc[list(zip(proj["game_id"], proj["gsis_id"]))].to_numpy()
+        proj["matchup_points"] = matchup.player_signal(proj, allowed)
         weights, scored = evaluate(proj)
         scored_all[name] = scored
         summaries.append(summarize(scored).assign(variant=name))
@@ -601,6 +623,10 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
         )
         if name in variants:
             variants[name]["positions"] = blend_weights(proj)
+            # Live matchup weight: the blend's misses over every test season (0018)
+            variants[name]["matchup_weight"] = matchup.fit_weight(
+                scored["fantasy_points"] - scored["blend_no_matchup_points"], scored["matchup_points"]
+            )
     summary = pd.concat(summaries, ignore_index=True)
     absence_summary = pd.concat(absence, ignore_index=True)
     weights = pd.concat(weights_all, ignore_index=True)
@@ -637,7 +663,9 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
 
     pd.set_option("display.width", 180)
     cols = ["variant", "model", "n", "mae", "bias", "rank_corr", "close_call_acc"]
-    pick = summary["model"].isin(["sleeper", "opportunity", "blend_unshifted", "blend_opportunity"])
+    pick = summary["model"].isin(
+        ["sleeper", "opportunity", "blend_unshifted", "blend_no_matchup", "blend_opportunity"]
+    )
     print("\n=== All rows, ALL positions, 2019-2025 ===")
     print(
         summary[pick & (summary["rows"] == "all") & (summary["position"] == "ALL")][cols]
@@ -656,7 +684,9 @@ def main(refresh: bool = False, skip_tune: bool = False) -> None:
         .round(4)
         .to_string(index=False)
     )
-    a_pick = absence_summary["model"].isin(["sleeper", "opportunity", "blend_unshifted", "blend_opportunity"])
+    a_pick = absence_summary["model"].isin(
+        ["sleeper", "opportunity", "blend_unshifted", "blend_no_matchup", "blend_opportunity"]
+    )
     print("\n=== Players on teams with a fresh key absence, relevant rows ===")
     print(
         absence_summary[a_pick & (absence_summary["rows"] == "relevant")][["position"] + cols]

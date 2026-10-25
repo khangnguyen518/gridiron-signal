@@ -28,6 +28,7 @@ A change that breaks a decision needs a new record first.
 - `src/nfl_model/features.py` recency-weighted shares and shrunk rates
 - `src/nfl_model/availability.py` who is expected to play, share renormalization
 - `src/nfl_model/questionable.py` Questionable players' chance to play and production (0017)
+- `src/nfl_model/matchup.py`  opponent points allowed by position (0018)
 - `src/nfl_model/roles.py`    depth chart roles, team role curves (0014)
 - `src/nfl_model/model.py`    team volume models and the two projections
 - `src/nfl_model/backtest.py` tuning, walk-forward test, model card
@@ -71,6 +72,7 @@ A change that breaks a decision needs a new record first.
 ## Modeling rules
 - Projections are stat lines. Points always come from `scoring.fantasy_points` with the league's own settings. (0007)
 - The only level adjustment is the median shift after blending, one constant per position, picked after the weight. Any other calibration must beat the current blend's MAE in the backtest. (0006, 0016)
+- After the blend, the matchup term adds weight x the opponent's points allowed to the player's position, the weight fit without an intercept on earlier seasons' blend misses. (0018)
 - Report a model change with the full `nflm backtest` summary, not one season or one position.
 - Judge ranges by pinball loss and coverage on 2019-2025 (`nflm sim-backtest`). After `nflm backtest`, rerun `nflm sim-backtest`: the ranges are tuned on the projections.
 - A tuned value on the edge of its grid means the grid is too narrow. Widen it and rerun.

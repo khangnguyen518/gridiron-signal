@@ -47,6 +47,12 @@
       "shift": -0.835
     }
   },
+  "matchup": {
+    "weight": 0.158,
+    "half_life_player": 6,
+    "half_life_defense": 8,
+    "pseudo_players": 4
+  },
   "variants": {
     "lock": {
       "renorm": {
@@ -88,7 +94,8 @@
           "w": 0.4,
           "shift": -0.9
         }
-      }
+      },
+      "matchup_weight": 0.17
     },
     "midweek": {
       "renorm": {
@@ -130,7 +137,8 @@
           "w": 0.45,
           "shift": -0.835
         }
-      }
+      },
+      "matchup_weight": 0.158
     }
   },
   "questionable": {

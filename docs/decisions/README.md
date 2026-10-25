@@ -26,8 +26,9 @@ A new decision gets the next number. A changed decision gets a new record that m
 | 0013 | Play calling and red-zone rates for rushing only | Accepted |
 | 0014 | Depth chart roles and team role curves | Accepted |
 | 0015 | Record Kalshi player props hourly, append-only | Accepted |
-| 0016 | Shift the blend to the median, per position | Accepted |
+| 0016 | Shift the blend to the median, per position | Accepted, amended by 0018 |
 | 0017 | Questionable players: chance to play and production when playing | Accepted |
+| 0018 | Opponent points allowed by position, after the blend | Accepted |
 
 ## Template
 ```
