@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-22
 - Amends: 0002
-- Extended by: 0015 (player props)
+- Extended by: 0015 (player props), 0019 (live projection log)
 
 ## Context
 Live projections read Kalshi's current lines, but nothing kept them. Line movement during the

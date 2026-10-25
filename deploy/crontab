@@ -1,6 +1,7 @@
 # Installed by deploy/setup_vm.sh, which runs: crontab deploy/crontab
 # Times are UTC, like every job on the shared VM (sports_db decision 0016).
-# Each line runs under flock, so a second copy exits if the first is still running.
+# Each line runs under flock, so a second copy exits if the first is still running. The league and
+# projection-log jobs share one lock and wait for it (-w), so neither is skipped when they meet.
 SHELL=/bin/bash
 PATH=/home/gridiron/.local/bin:/usr/local/bin:/usr/bin:/bin
 REPO=/home/gridiron/gridiron-signal
@@ -16,5 +17,11 @@ REPO=/home/gridiron/gridiron-signal
 # Lineup, close calls and waiver targets to Discord before kickoff, with live Kalshi lines and
 # Sleeper injury statuses. Sunday 15:30 UTC is 11:30 ET during daylight time and 10:30 ET after.
 # Thursday 21:00 UTC is before the Thursday game.
-30 15 * * 0 cd $REPO && flock -n /tmp/gridiron_league.lock uv run nflm league --refresh --discord >> logs/league.log 2>&1
-0 21 * * 4 cd $REPO && flock -n /tmp/gridiron_league.lock uv run nflm league --refresh --discord >> logs/league.log 2>&1
+30 15 * * 0 cd $REPO && flock -w 1200 /tmp/gridiron_league.lock uv run nflm league --refresh --discord >> logs/league.log 2>&1
+0 21 * * 4 cd $REPO && flock -w 1200 /tmp/gridiron_league.lock uv run nflm league --refresh --discord >> logs/league.log 2>&1
+
+# Forward test (decision 0019): this week's live projections to nflm_raw.projection_snapshots.
+# Daily 15:00 UTC is before Thursday night and Sunday games; Sunday 16:45 UTC is after inactives
+# for 1 p.m. ET games and before their kickoff, in daylight and standard time.
+0 15 * * * cd $REPO && flock -w 1200 /tmp/gridiron_league.lock uv run nflm log-projections >> logs/projlog.log 2>&1
+45 16 * * 0 cd $REPO && flock -w 1200 /tmp/gridiron_league.lock uv run nflm log-projections >> logs/projlog.log 2>&1

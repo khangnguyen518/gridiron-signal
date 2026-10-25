@@ -12,8 +12,13 @@ us-west1-c), next to sports_db, the NBA loader and arb-bot. It runs as Linux use
 | 08:00 daily | NBA loader | (other project) |
 | 09:20 daily | sports_db daily pipeline, about 18 minutes | (sports_db) |
 | **10:15 daily** | rebuild this repo's tables in `nflm` | `nflm refresh` |
+| **15:00 daily** | log this week's live projections (forward test, decision 0019) | `nflm log-projections` |
 | **Sun 15:30** | lineup, close calls, waivers to Discord | `nflm league --refresh --discord` |
+| **Sun 16:45** | log projections again, after inactives for 1 p.m. ET games | `nflm log-projections` |
 | **Thu 21:00** | same, before Thursday night | `nflm league --refresh --discord` |
+
+The league and projection-log jobs share a lock and wait for each other (`flock -w 1200`), so on the
+1 GB VM they never run at once and neither is skipped.
 
 `nflm refresh` first checks sports_db's `raw_meta.load_runs` for a successful prod dbt build in the
 last 30 hours. If there is none, it skips and posts to Discord instead of building on stale data.
@@ -68,7 +73,7 @@ gcloud compute ssh sports-vm --zone us-west1-c --project nba-analytics-499420 --
 ```
 
 ## Logs
-`/home/gridiron/gridiron-signal/logs/refresh.log`, `record.log` and `league.log`, rotated weekly, 8 kept.
+`/home/gridiron/gridiron-signal/logs/refresh.log`, `record.log`, `league.log` and `projlog.log`, rotated weekly, 8 kept.
 
 ## Line recorder
 `nflm record-lines` takes about 8 seconds and peaks near 160 MB (measured 2026-10-22); the player-prop pull

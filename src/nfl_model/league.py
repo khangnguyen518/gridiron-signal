@@ -72,6 +72,8 @@ def build_player_table(
             "blend_matchup",
             "q_play",
             "q_mult",
+            "practice_status",
+            "kickoff_utc",
             "target_share",
             "carry_share",
             "targets_hat",

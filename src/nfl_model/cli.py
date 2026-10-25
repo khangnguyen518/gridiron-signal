@@ -4,6 +4,7 @@ uv run nflm backtest [--refresh]
 uv run nflm league [--league-id ID] [--user NAME] [--week N] [--refresh] [--discord]
 uv run nflm refresh [--force]
 uv run nflm record-lines
+uv run nflm log-projections [--week N]
 """
 
 import argparse
@@ -30,6 +31,8 @@ def main() -> None:
     sb = sub.add_parser("sim-backtest", help="calibrate and test the game simulation's ranges")
     sb.add_argument("--refresh", action="store_true", help="re-read BigQuery instead of the cache")
     sub.add_parser("record-lines", help="append a snapshot of Kalshi NFL markets and lines (for cron)")
+    lp = sub.add_parser("log-projections", help="append this week's live projections to BigQuery (for cron)")
+    lp.add_argument("--week", type=int, help="NFL week (default: Sleeper's current week)")
 
     args = parser.parse_args()
     if args.command == "backtest":
@@ -40,9 +43,7 @@ def main() -> None:
         from nfl_model import config, data, league
 
         if args.refresh:
-            data.load_player_games(refresh=True)
-            data.load_team_games(refresh=True)
-            data.load_xwalk(refresh=True)
+            data.refresh_all()  # status and depth too: they carry this week's practice status and depth charts
         league_id = args.league_id or config.SLEEPER_LEAGUE_ID
         if not league_id:
             raise SystemExit("Pass --league-id or set SLEEPER_LEAGUE_ID in .env")
@@ -63,6 +64,12 @@ def main() -> None:
         from nfl_model import record
 
         sys.exit(record.main())
+    elif args.command == "log-projections":
+        import sys
+
+        from nfl_model import projlog
+
+        sys.exit(projlog.main(week=args.week))
 
 
 if __name__ == "__main__":

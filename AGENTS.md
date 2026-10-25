@@ -42,6 +42,7 @@ A change that breaks a decision needs a new record first.
 - `src/nfl_model/alerts.py`   Discord alerts and lineup posts
 - `src/nfl_model/record.py`   hourly Kalshi line and player prop recorder (0011, 0015)
 - `src/nfl_model/props.py`    Kalshi player prop markets (0015)
+- `src/nfl_model/projlog.py`  live projection log for the 2026 forward test (0019)
 - `src/nfl_model/simulate.py` game simulation, ranges (0012)
 - `src/nfl_model/sim_backtest.py` calibration and test of the ranges
 - `model/model_card.json`     the live model (written by backtest, committed to deploy)
@@ -56,6 +57,7 @@ A change that breaks a decision needs a new record first.
 - League: `uv run nflm league [--week N] [--user NAME] [--league-id ID] [--refresh] [--discord]`
 - Refresh (cron on the VM): `uv run nflm refresh [--force]`
 - Record Kalshi lines (cron on the VM, hourly): `uv run nflm record-lines`
+- Log live projections (cron on the VM, daily 15:00 and Sunday 16:45 UTC): `uv run nflm log-projections`
 - Simulation ranges: `uv run nflm sim-backtest` (tunes on 2012-2018, tests 2019-2025, writes `sim`, `sim_tails`, `range_mix`, `residual_table` into the model card)
 - Test: `uv run pytest`
 - Lint and format: `uv run ruff check src tests --fix && uv run ruff format src tests`
@@ -74,6 +76,7 @@ A change that breaks a decision needs a new record first.
 - The only level adjustment is the median shift after blending, one constant per position, picked after the weight. Any other calibration must beat the current blend's MAE in the backtest. (0006, 0016)
 - After the blend, the matchup term adds weight x the opponent's points allowed to the player's position, the weight fit without an intercept on earlier seasons' blend misses. (0018)
 - Report a model change with the full `nflm backtest` summary, not one season or one position.
+- The 2026 forward test (`nflm_raw.projection_snapshots`) is the clean test: its metric is fixed in decision 0019 and is read at the end of the regular season, not used to tune mid-season. (0019)
 - Judge ranges by pinball loss and coverage on 2019-2025 (`nflm sim-backtest`). After `nflm backtest`, rerun `nflm sim-backtest`: the ranges are tuned on the projections.
 - A tuned value on the edge of its grid means the grid is too narrow. Widen it and rerun.
 

@@ -14,6 +14,7 @@ sports_db (BigQuery, read only)         draft helper (BigQuery, read only)
             └──────────────┬────────────────────────┘
                            ▼
    Kalshi API ──hourly, record.py──> nflm_raw (append-only): game lines, player props (props.py)
+   league table ──daily, projlog.py──> nflm_raw.projection_snapshots (forward test, 0019)
                            │
             dbt (this repo) -> nflm_dev
               int_team_games        team x game: lines, points, volume

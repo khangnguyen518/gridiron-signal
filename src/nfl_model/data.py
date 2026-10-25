@@ -47,5 +47,14 @@ def load_player_depth(refresh: bool = False) -> pd.DataFrame:
     return _cached_query("player_depth", f"select * from {_table('int_player_game_depth')}", refresh)
 
 
+def refresh_all() -> None:
+    """Re-read every cached table, so live projections use today's dbt build (0019)."""
+    load_player_games(refresh=True)
+    load_team_games(refresh=True)
+    load_xwalk(refresh=True)
+    load_player_depth(refresh=True)
+    load_player_status(refresh=True)
+
+
 def load_player_status(refresh: bool = False) -> pd.DataFrame:
     return _cached_query("player_status", f"select * from {_table('int_player_game_status')}", refresh)

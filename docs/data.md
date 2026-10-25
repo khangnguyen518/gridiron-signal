@@ -14,6 +14,7 @@ Every table this repo builds, what it reads, and the data facts that are easy to
 | sports_db staging | `stg_nflverse__injuries_history` | injury report status as known before kickoff |
 | sports_db raw | `raw_nfl.rosters_weekly` | `sleeper_id` to `gsis_id`, which staging drops |
 | this repo, `nflm_raw` | `kalshi_markets`, `kalshi_game_lines`, `kalshi_player_props` | hourly Kalshi snapshots recorded by `nflm record-lines` |
+| this repo, `nflm_raw` | `projection_snapshots` | this week's live projections, daily and after Sunday inactives, from `nflm log-projections` (decision 0019) |
 | draft helper | `int_weekly_projected_points` | Sleeper's projection, scored with the league's settings |
 | draft helper | `int_weekly_actual_points` | Sleeper's league-scored actuals |
 
@@ -116,6 +117,20 @@ clustered by `event` (decision 0015). One row per open player-prop market per sn
 - First-TD markets have no strike, and include a "no touchdown" outcome with no team.
 - Not matched to gsis IDs yet. Match by name and team when the history is first used, keeping
   `kalshi_player_id` for a crosswalk; drop ambiguous matches (0004).
+
+### Raw: `nflm_raw.projection_snapshots`
+Written by `nflm log-projections` (decision 0019), append-only, partitioned by `DATE(snapshot_at)`,
+clustered by `week` and `position`. One row per player Sleeper lists per snapshot (about 3,200):
+exactly the league tool's table, scored with the league's own settings.
+
+- Model: `proj` (shown), `center` (expected points), `p10`/`p50`/`p90`, `ours`, `sleeper` (Sleeper's
+  live projection at that moment), `blend_w`, `blend_shift`, `blend_matchup`, `q_play`, `q_mult`.
+- Context: `injury_status` (Sleeper), `practice_status` (nflverse), `flag`, `role_label`, lines,
+  `kickoff_utc` (every player on a team playing that week; null on byes and for free agents).
+- Provenance: `model_card_sha`, `git_commit`, `scoring_sha`, `league_id`, `dbt_target`. Only
+  `dbt_target = 'prod'` rows count in the forward test; laptop rows are marked `dev`.
+- Evaluation (fixed in 0019): each player-game's last prod snapshot before kickoff, against
+  league-scored actuals in `ff_marts`.
 
 ### `int_kalshi_game_lines`
 Every snapshot matched to its nflverse game on the Eastern game date and away+home codes

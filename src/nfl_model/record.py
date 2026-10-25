@@ -75,7 +75,13 @@ PROP_SCHEMA = [
 ERRORS = (requests.RequestException, GoogleAPIError, KeyError, ValueError)
 
 
-def _append(client: bigquery.Client, table: str, df, schema: list[bigquery.SchemaField]) -> int:
+def _append(
+    client: bigquery.Client,
+    table: str,
+    df,
+    schema: list[bigquery.SchemaField],
+    clustering: list[str] | None = None,
+) -> int:
     if df.empty:
         return 0
     job = client.load_table_from_dataframe(
@@ -85,7 +91,7 @@ def _append(client: bigquery.Client, table: str, df, schema: list[bigquery.Schem
             schema=schema,
             write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
             time_partitioning=bigquery.TimePartitioning(field="snapshot_at"),
-            clustering_fields=["event"],
+            clustering_fields=clustering or ["event"],
         ),
     )
     job.result()

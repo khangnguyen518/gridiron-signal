@@ -29,6 +29,7 @@ A new decision gets the next number. A changed decision gets a new record that m
 | 0016 | Shift the blend to the median, per position | Accepted, amended by 0018 |
 | 0017 | Questionable players: chance to play and production when playing | Accepted |
 | 0018 | Opponent points allowed by position, after the blend | Accepted |
+| 0019 | Log live projections for a forward test | Accepted |
 
 ## Template
 ```
