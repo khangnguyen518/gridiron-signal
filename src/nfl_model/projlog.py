@@ -20,6 +20,7 @@ from google.api_core.exceptions import GoogleAPIError
 from google.cloud import bigquery
 
 from nfl_model import alerts, config, data, league, sleeper
+from nfl_model.live import AllGamesPlayed
 from nfl_model.record import _append
 
 S = bigquery.SchemaField
@@ -130,6 +131,9 @@ def main(week: int | None = None) -> int:
         rows = snapshot_rows(players, at, season, week, meta)
         client = bigquery.Client(project=config.NFLM_GCP_PROJECT)
         n = _append(client, "projection_snapshots", rows, SCHEMA, clustering=["week", "position"])
+    except AllGamesPlayed as exc:  # Tuesday before Sleeper moves to the next week: nothing to log
+        print(f"{at:%Y-%m-%d %H:%M} UTC: nothing to log ({exc})")
+        return 0
     except (requests.RequestException, GoogleAPIError, KeyError, ValueError) as exc:
         alerts.send(f"gridiron-signal log-projections failed at {at:%Y-%m-%d %H:%M} UTC: {exc!r}")
         return 1

@@ -65,6 +65,10 @@ def load_model_card() -> dict:
     return json.loads((run / "model_card.json").read_text())
 
 
+class AllGamesPlayed(ValueError):
+    """Every game of the requested week already has stats: nothing left to project."""
+
+
 def week_lines(tg: pd.DataFrame, season: int, week: int) -> tuple[pd.DataFrame, str]:
     """This week's team rows, with Kalshi lines in place of nflverse where Kalshi lists the game."""
     wk = tg[(tg["season"] == season) & (tg["week"] == week)].copy()
@@ -106,6 +110,18 @@ def project_week(
     xwalk = data.load_xwalk()
 
     wk, source_note = week_lines(tg, season, week)
+    # Games already played this week (Thursday night by Sunday) are history, not projections: their
+    # stats are in pg, and a future row too would count those players twice in every share
+    played = set(pg.loc[(pg["season"] == season) & (pg["week"] == week), "game_id"])
+    if played:
+        wk = wk[~wk["game_id"].isin(played)]
+        notes.append(
+            f"{len(played)} game(s) this week already played; projecting the other {wk['game_id'].nunique()}."
+        )
+    if wk.empty:
+        raise AllGamesPlayed(f"every {season} week {week} game has been played")
+    sources = wk.drop_duplicates("game_id")["line_source"].value_counts().to_dict()
+    source_note = ", ".join(f"{n} games from {src}" for src, n in sources.items())
     notes.append(f"Lines: {source_note}")
     last = pg.loc[pg["season"] == season, "week"].max()
     if pd.isna(last) or last < week - 1:
@@ -187,7 +203,7 @@ def project_week(
         if "renorm" in card:
             feats = renormalize(feats, flag, Renorm(**card["renorm"]), card["center"])
 
-    other_weeks = tg[~((tg["season"] == season) & (tg["week"] == week))]
+    other_weeks = tg[~tg["game_id"].isin(wk["game_id"])]
     tgf = add_team_features(
         pd.concat([other_weeks, wk.drop(columns=["line_source"])]), params.hl_team, params.coach_k
     )
@@ -196,7 +212,7 @@ def project_week(
         & tgf["pass_attempts"].notna()
         & (tgf["kickoff_utc"] < wk["kickoff_utc"].min())
     ]
-    this_week = tgf[(tgf["season"] == season) & (tgf["week"] == week)]
+    this_week = tgf[tgf["game_id"].isin(wk["game_id"])]
     proj = project(feats, predict_volume(fit_volume_models(train), this_week), scoring)
 
     proj["blend_w"] = proj["position"].map({p: v["w"] for p, v in card["positions"].items()})
