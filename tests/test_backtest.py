@@ -16,6 +16,13 @@ def test_flags_ranges_stale_when_model_changed():
     assert stale
 
 
+def test_keeps_kdef_fits_and_they_never_make_ranges_stale():
+    card = {"params": {"hl_share": 2}}
+    full, stale = keep_sim_keys(card, {**card, "kdef": {"blend": {}}})
+    assert full["kdef"] == {"blend": {}}
+    assert not stale
+
+
 def test_no_previous_card():
     full, stale = keep_sim_keys({"params": {}}, {})
     assert full == {"params": {}}

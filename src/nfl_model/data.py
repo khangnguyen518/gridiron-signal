@@ -56,6 +56,23 @@ def refresh_all() -> None:
     load_xwalk(refresh=True)
     load_player_depth(refresh=True)
     load_player_status(refresh=True)
+    load_defense_games(refresh=True)
+    load_kicker_games(refresh=True)
+
+
+def load_defense_games(refresh: bool = False) -> pd.DataFrame:
+    """Team defense stat line per game played (decision 0021)."""
+    return _cached_query("defense_games", f"select * from {_table('int_defense_games')}", refresh)
+
+
+def load_kicker_games(refresh: bool = False) -> pd.DataFrame:
+    """Kicker stat line per game kicked (decision 0021)."""
+    return _cached_query("kicker_games", f"select * from {_table('int_kicker_games')}", refresh)
+
+
+def load_sleeper_kdef(refresh: bool = False) -> pd.DataFrame:
+    """Sleeper's K and DEF projections and league-scored actuals, the benchmark for 0021."""
+    return _cached_query("sleeper_kdef", f"select * from {_table('int_sleeper_kdef')}", refresh)
 
 
 def load_player_status(refresh: bool = False) -> pd.DataFrame:

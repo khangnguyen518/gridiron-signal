@@ -274,6 +274,26 @@ Questionable (about 55,000 to 63,000 pairs). The 2016-2018 rates carry over to 2
 | WR | 0.25 | 0.45 | 0.40 | 0.55 | 0.50 | 0.45 | 0.45 |
 | TE | 0.50 | 0.50 | 0.45 | 0.50 | 0.50 | 0.45 | 0.45 |
 
+## Kickers and defenses (decision 0021)
+
+`nflm kdef-backtest`, run `output/kdef_backtests/20261110_203858/`. Each season's stat models fit
+on 2010 to S-1; blend weight and median shift on 2018 to S-1; scored on 2019-2025 against Sleeper's
+league-scored actuals (3,718 defense-weeks, 3,519 kicker-weeks). Startable = top 12 by Sleeper.
+
+| | Model | MAE | MAE startable | Rank corr | Close calls vs Sleeper, startable |
+|---|---|---|---|---|---|
+| Defense | Sleeper | 4.676 | 5.026 | 0.264 | |
+| Defense | Lines prototype (points directly) | 4.594 | 4.928 | 0.279 | |
+| Defense | **Blend (stat lines + Sleeper)** | **4.575** | **4.917** | **0.286** | +0.5 pts (-0.8 to +1.8) |
+| Kicker | Sleeper | 3.641 | 3.611 | 0.104 | |
+| Kicker | Lines prototype | 3.599 | 3.533 | 0.140 | |
+| Kicker | **Blend** | **3.605** | **3.542** | **0.143** | +3.2 pts (+1.0 to +5.3) |
+
+Blend vs Sleeper, startable MAE: defense -0.109 (-0.161 to -0.056), kicker -0.069 (-0.133 to
+-0.004). Blend vs the prototype, startable: defense -0.011 (noise), kicker +0.009 (+0.001 to
++0.017), the one miss against the bar set before building (decision 0021). Ranges: 10-90 coverage
+78.5% (defense) and 79.5% (kicker), 25-75 coverage 45%.
+
 ## Depth chart roles (decision 0014)
 
 Each week, a team's expected-to-play WRs, TEs and RBs are ranked by depth chart tier, then recent

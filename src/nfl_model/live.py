@@ -12,12 +12,13 @@ import numpy as np
 import pandas as pd
 import requests
 
-from nfl_model import config, data, lines, matchup, questionable, sleeper
+from nfl_model import config, data, kdef, lines, matchup, questionable, sleeper
 from nfl_model.availability import Renorm, add_roster_rows, add_team_usual, renormalize
 from nfl_model.backtest import VARIANTS, latest_run_dir, prepare
 from nfl_model.features import Params, add_player_features, add_team_features, season_priors
 from nfl_model.model import fit_volume_models, predict_volume, project
 from nfl_model.roles import RoleParams, apply_roles
+from nfl_model.scoring import DEFAULT_SCORING
 
 # Stat columns a placeholder row carries as zero: nothing is known about this game yet
 # Seasons of history kept for live features. Usage has a 2-game half-life, so older games barely
@@ -96,11 +97,32 @@ def week_lines(tg: pd.DataFrame, season: int, week: int) -> tuple[pd.DataFrame, 
     return wk, ", ".join(f"{n} games from {src}" for src, n in sources.items())
 
 
+def project_kdef(
+    wk: pd.DataFrame, tg: pd.DataFrame, card: dict, scoring: dict[str, float] | None
+) -> dict[str, pd.DataFrame]:
+    """This week's team defense and kicker-slot rows with expected league points (decision 0021),
+    from every team's games before this week's first kickoff. Empty when the card has no kdef."""
+    fits = card.get("kdef")
+    if not fits:
+        return {}
+    scoring = scoring or DEFAULT_SCORING
+    first = wk["kickoff_utc"].min()
+    hist = tg[tg["kickoff_utc"] < first]
+    dg, kg = data.load_defense_games(), data.load_kicker_games()
+    d = kdef.defense_rows(dg[dg["kickoff_utc"] < first], hist, upcoming=wk)
+    k = kdef.kicker_rows(kg[kg["kickoff_utc"] < first], hist, upcoming=wk)
+    d, k = d[d["played"].eq(0)].reset_index(drop=True), k[k["played"].eq(0)].reset_index(drop=True)
+    d["ours"] = kdef.project_defense(d, fits["defense"], scoring)["points"].to_numpy()
+    k["ours"] = kdef.project_kicker(k, fits["kicker"], scoring)["points"].to_numpy()
+    return {"DEF": d, "K": k}
+
+
 def project_week(
     season: int, week: int, scoring: dict[str, float] | None = None
-) -> tuple[pd.DataFrame, list[str]]:
-    """One row per skill player with NFL history on a team playing this week.
-    Returns (projections keyed by sleeper_id, notes about data freshness and lines)."""
+) -> tuple[pd.DataFrame, list[str], dict[str, pd.DataFrame]]:
+    """One row per skill player with NFL history on a team playing this week, plus this week's
+    team defense and kicker-slot rows (decision 0021).
+    Returns (projections keyed by sleeper_id, notes about data freshness and lines, K/DEF rows)."""
     card = load_model_card()
     params = Params(**card["params"])
     notes: list[str] = []
@@ -236,4 +258,4 @@ def project_week(
             "No practice status in int_player_game_status yet: run `dbt build`; Questionable uses pooled rates."
         )
     proj["q_play"], proj["q_mult"] = questionable.factors(proj, card.get("questionable"))
-    return proj, notes
+    return proj, notes, project_kdef(wk, tg, card, scoring)

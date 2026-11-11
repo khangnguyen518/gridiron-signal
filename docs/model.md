@@ -245,6 +245,23 @@ tuned to 0.5, 0.5, 0.75.
 
 See `docs/backtest.md` for how they were chosen and how much each matters.
 
+## Kickers and team defenses (`kdef.py`, decision 0021)
+
+Each team-game gets a stat line for its defense and its kicker slot, scored with the league's
+settings, then blended with Sleeper and shifted like the skill positions (0016):
+
+| Unit | Stat | Model |
+|---|---|---|
+| Defense | points allowed (Sleeper's: minus the opponent's defensive and special-teams TDs) | opponent implied points + a residual drawn from earlier seasons' misses; the bracket points are averaged over that distribution |
+| Defense | sacks, INTs, fumble recoveries, forced fumbles, def/ST TDs, safeties, blocked kicks, ST fumble recoveries | Poisson regression on opponent implied points, own spread, the defense's recent rate and the opponent offense's recent rate allowed (half-life 8 games, shrunk toward the league average of earlier games) |
+| Kicker | field goal attempts by distance band (0-19, 20-29, 30-39, 40-49, 50+), extra point attempts | Poisson regression on own implied points and spread |
+| Kicker | makes | league make rate per band from earlier seasons: 0.97 (20-29) down to 0.65 (50+); XP 0.96 |
+
+Fit on every season with lines before the projected one (2010 onward). Live: blend weight on ours
+0.40 for defenses and 0.90 for kickers, shifts -1.12 and -0.31. A team's kicker slot goes to its
+kicker with the highest Sleeper projection. Ranges are the model's own draws, stretched by a factor
+calibrated on 2015-2017 (defense 1.25, kicker 0.9), centered on the blend before its shift.
+
 ## Game simulation and ranges (`simulate.py`)
 
 Every live player gets 1,000 simulated games. The simulation plays each NFL game once per
@@ -276,7 +293,8 @@ same, so the correlations between players carry over. The range shown is the 10t
 percentile: 80% of outcomes should land inside it.
 
 Players with no simulation: skill players with no NFL game yet use the historical misses alone;
-kickers and defenses use Normal(projection, 4.0 or 5.5), an assumption that is not backtested.
+kickers and defenses use their own model's draws (above, decision 0021); Normal(projection, 4.0 or
+5.5) only for a kicker or defense the model does not cover.
 
 **Win probability:** your starters' simulated totals against your opponent's (their set
 starters, else their best-projection lineup), from the same draws, ties counted as half. The
@@ -290,5 +308,4 @@ than either number alone.
   (for example, the WR2 moving into the WR1's role specifically).
 - Rookies or new signings with no NFL game absorb usage in reality but are not in S.
 - Correlation between kickers or defenses and the rest of the game (they are drawn independently).
-- Kickers and defenses (Sleeper only).
 - Weather and home field beyond what the lines already price in. The opposing defense enters through the lines, its play-calling and red-zone rates, and points allowed by position (0018), not through efficiency allowed.

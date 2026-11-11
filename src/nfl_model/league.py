@@ -21,7 +21,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-from nfl_model import config, sleeper
+from nfl_model import config, kdef, sleeper
 from nfl_model.live import load_model_card, project_week
 from nfl_model.simulate import SimParams, mix_with_residuals, rescale, simulate, stretch_tails
 
@@ -50,7 +50,7 @@ def build_player_table(
 ) -> tuple[pd.DataFrame, list[str], np.ndarray]:
     """Every fantasy-relevant player with ours, Sleeper and blended projections, plus
     simulated points (rows aligned with the table, N_SIMS columns)."""
-    ours_full, notes = project_week(season, week, scoring)
+    ours_full, notes, kdef_rows = project_week(season, week, scoring)
     # Role this week (WR1, RB2, ...) from the depth chart and recent usage (roles.py)
     if "role" in ours_full:
         ours_full["role_label"] = [
@@ -99,6 +99,7 @@ def build_player_table(
     players = players[players["position"].isin(set(config.POSITIONS) | {"K", "DEF"})]
     df = players.merge(sl, on="sleeper_id", how="left").merge(ours, on="sleeper_id", how="left")
     df = df[df["sleeper"].notna() | df["ours"].notna()]
+    df = add_kdef(df, kdef_rows, load_model_card().get("kdef"))
 
     w = df["blend_w"].fillna(0.0)
     both = df["ours"].notna() & df["sleeper"].notna()
@@ -132,13 +133,54 @@ def build_player_table(
     df["center"] = df["center_play"] * q_play
     df = df.drop(columns=["sleeper_opponent"]).reset_index(drop=True)
 
-    draws = player_draws(df, ours_full, scoring)
+    draws = player_draws(df, ours_full, scoring, kdef_rows)
     q = np.quantile(draws, [0.1, 0.5, 0.9], axis=1)
     df["p10"], df["p50"], df["p90"] = q[0].round(1), q[1].round(1), q[2].round(1)
     return df, notes, draws
 
 
-def player_draws(df: pd.DataFrame, ours_full: pd.DataFrame, scoring: dict[str, float]) -> np.ndarray:
+def add_kdef(df: pd.DataFrame, rows: dict[str, pd.DataFrame], fits: dict | None) -> pd.DataFrame:
+    """Our team defense and kicker projections (decision 0021) on the K and DEF rows, with the
+    card's blend weight and median shift. A team's kicker slot goes to its kicker with the highest
+    Sleeper projection (backups and free agents keep Sleeper's number)."""
+    if not rows or not fits:
+        return df
+    df = df.copy()
+    for pos, frame in rows.items():
+        by_team = frame.set_index("team")["ours"]
+        is_pos = df["position"].eq(pos) & df["team"].isin(by_team.index)
+        if pos == "K":
+            top = df[is_pos].sort_values("sleeper", ascending=False).drop_duplicates("team").index
+            is_pos = df.index.isin(top)
+        df.loc[is_pos, "ours"] = df.loc[is_pos, "team"].map(by_team)
+        df.loc[is_pos, "blend_w"] = fits["blend"][pos]["w"]
+        df.loc[is_pos, "blend_shift"] = fits["blend"][pos]["shift"]
+        df.loc[is_pos, "blend_matchup"] = 0.0
+        lines = frame.set_index("team")
+        for col in [c for c in ["opponent", "implied_points", "spread"] if c in lines]:
+            df.loc[is_pos, col] = df.loc[is_pos, "team"].map(lines[col])
+    return df
+
+
+def kdef_draws(
+    rows: dict[str, pd.DataFrame], fits: dict, scoring: dict[str, float], rng: np.random.Generator
+) -> dict:
+    """Simulated league points per team for its defense and kicker slot, width calibrated (0021)."""
+    out = {}
+    for pos, draw, fit in [("DEF", kdef.draw_defense, "defense"), ("K", kdef.draw_kicker, "kicker")]:
+        frame = rows.get(pos)
+        if frame is None or frame.empty:
+            continue
+        d = kdef.stretch(
+            draw(frame, fits[fit], scoring, N_SIMS, rng), fits.get("range_stretch", {}).get(pos, 1.0)
+        )
+        out[pos] = {t: (d[i], frame["ours"].iat[i]) for i, t in enumerate(frame["team"])}
+    return out
+
+
+def player_draws(
+    df: pd.DataFrame, ours_full: pd.DataFrame, scoring: dict[str, float], kdef_rows: dict | None = None
+) -> np.ndarray:
     """Simulated points per table row, centered on each row's center_play (the blend before its
     median shift, times a Questionable player's production if he plays). Zero for players who
     will not play, and for a Questionable player in a 1 - q_play share of games (decision 0017)."""
@@ -154,8 +196,15 @@ def player_draws(df: pd.DataFrame, ours_full: pd.DataFrame, scoring: dict[str, f
         sim_rows = sim_rows.reset_index(drop=True)
         sim_draws = simulate(sim_rows, SimParams(**card["sim"]), n=N_SIMS, scoring=scoring, seed=seed)
         sim_index = {sid: i for i, sid in enumerate(sim_rows["sleeper_id"])}
+    kd = kdef_draws(kdef_rows, card["kdef"], scoring, rng) if kdef_rows and card.get("kdef") else {}
     for i, row in enumerate(df.itertuples()):
         if row.proj <= 0:
+            continue
+        unit = kd.get(row.position, {}).get(row.team) if pd.notna(getattr(row, "ours", np.nan)) else None
+        if unit is not None:
+            # Our K/DEF distribution, moved so its mean is the blend before the median shift (0016, 0021)
+            unit_draws, unit_mean = unit
+            draws[i] = unit_draws + (row.center_play - unit_mean)
             continue
         j = sim_index.get(row.sleeper_id)
         if sim_draws is not None and j is not None:

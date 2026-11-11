@@ -541,14 +541,18 @@ def model_card(params: Params, variants: dict[str, dict], questionable_table: di
 
 # Written by `nflm sim-backtest` into the same card; a backtest must not drop them
 SIM_KEYS = ("sim", "sim_tails", "range_mix", "residual_table")
+# Written by `nflm kdef-backtest`: kicker and defense fits, independent of the skill model (0021)
+KDEF_KEYS = ("kdef",)
 
 
 def keep_sim_keys(card: dict, previous: dict) -> tuple[dict, bool]:
-    """`card` plus the range settings from the previous card, and whether they are now stale
-    (the rest of the card changed, so the ranges were tuned on different projections)."""
+    """`card` plus the range settings and the K/DEF fits from the previous card, and whether the
+    ranges are now stale (the rest of the card changed, so they were tuned on different projections).
+    The K/DEF fits do not depend on the skill model, so they never make the ranges stale."""
     kept = {k: previous[k] for k in SIM_KEYS if k in previous}
     stale = bool(kept) and any(previous.get(k) != v for k, v in card.items())
-    return {**card, **kept}, stale
+    kdef = {k: previous[k] for k in KDEF_KEYS if k in previous}
+    return {**card, **kept, **kdef}, stale
 
 
 def latest_run_dir() -> Path | None:

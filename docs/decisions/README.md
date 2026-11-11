@@ -30,6 +30,7 @@ A new decision gets the next number. A changed decision gets a new record that m
 | 0017 | Questionable players: chance to play and production when playing | Accepted |
 | 0018 | Opponent points allowed by position, after the blend | Accepted |
 | 0019 | Log live projections for a forward test | Accepted |
+| 0021 | Kickers and team defenses as stat lines from the lines | Accepted |
 
 ## Template
 ```

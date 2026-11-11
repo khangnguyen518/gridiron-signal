@@ -5,7 +5,7 @@ with pairs as (
         nullif(trim(cast(sleeper_id as string)), '') as sleeper_id,
         nullif(trim(cast(gsis_id as string)), '') as gsis_id
     from {{ source('sports_db_raw', 'rosters_weekly') }}
-    where position in ('QB', 'RB', 'WR', 'TE')
+    where position in ('QB', 'RB', 'WR', 'TE', 'K')  -- K since decision 0021
 ),
 
 clean as (

@@ -53,7 +53,7 @@ CSV copies of each table, plus every player's projections, go to
 |---|---|
 | Both projections exist | `w x ours + (1 - w) x Sleeper + shift + matchup`, w and the median shift per position from the model card (decision 0016); matchup = weight x the opponent's points allowed to his position (decision 0018) |
 | Rookie with no NFL game yet | Sleeper only (flag "no history: Sleeper only") |
-| Kicker or defense | Sleeper only |
+| Kicker or defense | `w x ours + (1 - w) x Sleeper + shift` from the K/DEF model (decision 0021); a team's kicker slot goes to its kicker with the highest Sleeper projection, other kickers keep Sleeper's number |
 | Injury status Out, IR, PUP, Sus, NA or DNR | 0, flagged with the status |
 | Team on bye | 0, flagged "bye" |
 | Questionable | blend x chance to play x production if playing, by his last practice (decision 0017); flagged "Questionable, plays N%". Ranges include the games he sits (p10 is often 0). |
@@ -115,7 +115,7 @@ nested slot types that order gives the best total.
   weeks is missing, which matters most for rookies and changing roles. Follow `docs/runbook.md`.
 
 ## Limits
-- Kicker and defense ranges are assumed Normal spreads, not backtested, and independent of their games.
+- Kicker and defense ranges come from their own model, calibrated on 2015-2017, but are drawn independently of their game's simulation.
 - Win probability assumes the opponent's lineup stays as set; it does not anticipate their changes.
 - A Questionable player's projection is his expected points before inactives post. Once he is confirmed
   active (about 90 minutes before kickoff), his full projection applies; rerun after inactives.

@@ -124,6 +124,40 @@ models:
       - name: depth_tier
         description: Pregame depth chart tier from int_player_game_depth (1 = starter). Null when not listed.
 
+  - name: int_defense_games
+    description: >
+      One row per team defense per regular-season game played: points allowed (the opponent's
+      points minus its defensive and special-teams touchdowns), sacks, interceptions, fumble
+      recoveries, forced fumbles, defensive and special-teams touchdowns, safeties, blocked kicks,
+      special-teams fumble recoveries. Sleeper's definitions (decision 0021).
+    data_tests:
+      - dbt_utils_free_unique_combo:
+          arguments:
+            columns: [game_id, team]
+    columns:
+      - name: pts_allowed
+        description: Points allowed by the defense as Sleeper scores it.
+        data_tests:
+          - not_null
+
+  - name: int_kicker_games
+    description: >
+      One row per kicker per regular-season game he kicked in: field goal attempts and makes by
+      Sleeper's distance bands, misses, extra point attempts, makes and misses (decision 0021).
+    data_tests:
+      - dbt_utils_free_unique_combo:
+          arguments:
+            columns: [game_id, gsis_id]
+
+  - name: int_sleeper_kdef
+    description: >
+      Sleeper's weekly projection and league-scored actual for kickers (via int_player_xwalk) and
+      team defenses (Sleeper ID = team code), the benchmark for decision 0021.
+    data_tests:
+      - dbt_utils_free_unique_combo:
+          arguments:
+            columns: [sleeper_id, season, week, league_id]
+
   - name: int_kalshi_game_lines
     description: >
       Every recorded Kalshi line snapshot matched to its nflverse game (Eastern game date and

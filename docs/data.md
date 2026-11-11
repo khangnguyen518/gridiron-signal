@@ -51,7 +51,21 @@ come from play-by-play. Tests: unique `(game_id, gsis_id)`, `gsis_id` not null.
 ### `int_player_xwalk`
 Sleeper `player_id` to nflverse `gsis_id`, from every weekly roster row with both IDs.
 One-to-one: a Sleeper ID with two gsis IDs, or a gsis ID with two Sleeper IDs, is dropped.
-Tests: both columns unique and not null. See decision 0004.
+Tests: both columns unique and not null. See decision 0004. Kickers included since decision 0021
+(105 pairs); no skill-player pair changed.
+
+### `int_defense_games` and `int_kicker_games` (decision 0021)
+One row per team defense per game played, and one per kicker per game kicked, 2010 onward
+(about 8.5k each). Sleeper's stat definitions, checked by rebuilding league points and comparing
+with Sleeper's league-scored actuals for 2018-2025: kickers match exactly in 99.4% of games;
+defenses in 82%, within 2 points in 95.5% (points allowed excludes the opponent's defensive and
+special-teams TDs; defensive and special-teams TDs both count). Tests: unique `(game_id, team)` and
+`(game_id, gsis_id)`; `pts_allowed` not null.
+
+### `int_sleeper_kdef` (decision 0021)
+Sleeper's weekly K and DEF projections and league-scored actuals from the draft helper's marts, the
+benchmark for the K/DEF model. A defense's Sleeper ID is its team code; a kicker's comes from
+`int_player_xwalk`. Test: unique `(sleeper_id, season, week, league_id)`.
 
 ### `int_team_game_situations`
 One row per team per regular-season game played, from play-by-play: all, neutral-situation and

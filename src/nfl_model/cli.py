@@ -6,6 +6,7 @@ uv run nflm league [--league-id ID] [--user NAME] [--week N] [--refresh] [--disc
 uv run nflm refresh [--force]
 uv run nflm record-lines
 uv run nflm log-projections [--week N]
+uv run nflm kdef-backtest
 """
 
 import argparse
@@ -33,6 +34,9 @@ def main() -> None:
     sb = sub.add_parser("sim-backtest", help="calibrate and test the game simulation's ranges")
     sb.add_argument("--refresh", action="store_true", help="re-read BigQuery instead of the cache")
     sub.add_parser("record-lines", help="append a snapshot of Kalshi NFL markets and lines (for cron)")
+    sub.add_parser(
+        "kdef-backtest", help="test the kicker and defense models against Sleeper, write them to the card"
+    )
     lp = sub.add_parser("log-projections", help="append this week's live projections to BigQuery (for cron)")
     lp.add_argument("--week", type=int, help="NFL week (default: Sleeper's current week)")
 
@@ -66,6 +70,10 @@ def main() -> None:
         from nfl_model import record
 
         sys.exit(record.main())
+    elif args.command == "kdef-backtest":
+        from nfl_model import kdef_backtest
+
+        kdef_backtest.main()
     elif args.command == "log-projections":
         import sys
 

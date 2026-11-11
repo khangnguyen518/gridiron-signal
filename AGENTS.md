@@ -47,6 +47,8 @@ A change that breaks a decision needs a new record first.
 - `src/nfl_model/record.py`   hourly Kalshi line and player prop recorder (0011, 0015)
 - `src/nfl_model/props.py`    Kalshi player prop markets (0015)
 - `src/nfl_model/projlog.py`  live projection log for the 2026 forward test (0019)
+- `src/nfl_model/kdef.py`     kickers and team defenses as stat lines from the lines (0021)
+- `src/nfl_model/kdef_backtest.py` K/DEF walk-forward test against Sleeper, card fits
 - `src/nfl_model/simulate.py` game simulation, ranges (0012)
 - `src/nfl_model/sim_backtest.py` calibration and test of the ranges
 - `model/model_card.json`     the live model (written by backtest, committed to deploy)
@@ -62,6 +64,7 @@ A change that breaks a decision needs a new record first.
 - Refresh (cron on the VM): `uv run nflm refresh [--force]`
 - Record Kalshi lines (cron on the VM, hourly): `uv run nflm record-lines`
 - Log live projections (cron on the VM, daily 15:00 and Sunday 16:45 UTC): `uv run nflm log-projections`
+- Kickers and defenses: `uv run nflm kdef-backtest` (fits on 2010 to S-1, tests 2019-2025 against Sleeper, writes `kdef` into the model card)
 - Simulation ranges: `uv run nflm sim-backtest` (tunes on 2012-2018, tests 2019-2025, writes `sim`, `sim_tails`, `range_mix`, `residual_table` into the model card)
 - Test: `uv run pytest`
 - Lint and format: `uv run ruff check src tests --fix && uv run ruff format src tests`
