@@ -60,6 +60,9 @@ def dbt_build() -> int:
 
 
 def main(force: bool = False) -> int:
+    # Cron sends stdout to logs/refresh.log, where Python buffers it and dbt (a subprocess) does not:
+    # without line buffering, each day's status lines land after that day's dbt output
+    sys.stdout.reconfigure(line_buffering=True)
     started = datetime.now(UTC)
     print(
         f"{started:%Y-%m-%d %H:%M} UTC refresh: target {config.NFLM_DBT_TARGET}, "

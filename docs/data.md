@@ -56,8 +56,9 @@ One row per team per regular-season game played, from play-by-play: all, neutral
 red-zone plays and pass plays; red-zone trips (drives that reached the opponent's 20) and those
 ending in a touchdown; red-zone pass and rush touchdowns; and the defense's numbers allowed in the
 same terms. Neutral = 1st or 2nd down, quarters 1-3, score within 7. Excludes two-point tries,
-kneels and spikes. Tests: unique `(game_id, team)`; every played team-game has a row
-(`team_games_have_situations`). League averages check out: neutral pass rate 52-54%, red-zone
+kneels and spikes. Tests: unique `(game_id, team)`; every played team-game that kicked off more than
+36 hours before the build has a row (`team_games_have_situations`; a game's score can reach the
+schedule before its play-by-play, as on 2026-11-09). League averages check out: neutral pass rate 52-54%, red-zone
 touchdown rate 55-59%, 64-66 plays a game (2012, 2018, 2024).
 
 ### `int_player_game_depth`
