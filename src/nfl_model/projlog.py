@@ -100,6 +100,9 @@ def snapshot_rows(players: pd.DataFrame, at: datetime, season: int, week: int, m
 
 
 def main(week: int | None = None) -> int:
+    """`nflm log-projections`: append every player's live projection for the week to
+    nflm_raw.projection_snapshots (decision 0019). Returns 0 on success or when every game of the
+    week is played, 1 after a failure, posted to Discord."""
     at = datetime.now(UTC)
     league_id = config.SLEEPER_LEAGUE_ID
     if not league_id:

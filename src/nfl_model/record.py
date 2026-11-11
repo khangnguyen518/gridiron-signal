@@ -99,6 +99,8 @@ def _append(
 
 
 def main() -> int:
+    """`nflm record-lines`: append one snapshot of Kalshi NFL game markets and lines, then
+    player props, to nflm_raw. Each part posts to Discord on failure. Returns 1 if either failed."""
     at = datetime.now(UTC)
     ok = True
     try:

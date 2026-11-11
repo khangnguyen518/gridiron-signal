@@ -9,9 +9,11 @@ Every table this repo builds, what it reads, and the data facts that are easy to
 | sports_db staging | `stg_nflverse__schedules` | games, kickoff, closing spread and total, `lines_known_at` |
 | sports_db staging | `stg_nflverse__player_stats_week` | player box scores (regular season, QB/RB/WR/TE) |
 | sports_db staging | `stg_nflverse__team_stats_week` | team pass attempts, sacks, carries, pass and rush TDs |
-| sports_db staging | `stg_nflverse__pbp` | red-zone targets and carries (inside the 20, no two-point tries) |
+| sports_db staging | `stg_nflverse__pbp` | red-zone targets, carries and trips (inside the 20, no two-point tries), play-calling rates |
 | sports_db staging | `stg_nflverse__rosters_weekly` | weekly roster status (ACT, INA game-day inactive, RES, PUP, SUS) |
-| sports_db staging | `stg_nflverse__injuries_history` | injury report status as known before kickoff |
+| sports_db staging | `stg_nflverse__injuries_history` | injury report and last practice status as known before kickoff |
+| sports_db staging | `stg_nflverse__depth_charts_weekly` | weekly depth charts through 2024 (`int_player_game_depth`) |
+| sports_db staging | `stg_nflverse__depth_charts_history` | daily depth chart snapshots, the format nflverse uses from 2025 (`int_player_game_depth`) |
 | sports_db raw | `raw_nfl.rosters_weekly` | `sleeper_id` to `gsis_id`, which staging drops |
 | this repo, `nflm_raw` | `kalshi_markets`, `kalshi_game_lines`, `kalshi_player_props` | hourly Kalshi snapshots recorded by `nflm record-lines` |
 | this repo, `nflm_raw` | `projection_snapshots` | this week's live projections, daily and after Sunday inactives, from `nflm log-projections` (decision 0019) |

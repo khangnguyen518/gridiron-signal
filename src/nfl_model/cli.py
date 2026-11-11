@@ -1,6 +1,7 @@
 """Command line entry point.
 
-uv run nflm backtest [--refresh]
+uv run nflm backtest [--refresh] [--skip-tune]
+uv run nflm sim-backtest [--refresh]
 uv run nflm league [--league-id ID] [--user NAME] [--week N] [--refresh] [--discord]
 uv run nflm refresh [--force]
 uv run nflm record-lines
@@ -11,6 +12,7 @@ import argparse
 
 
 def main() -> None:
+    """Parse the `nflm` subcommand and run it."""
     parser = argparse.ArgumentParser(prog="nflm")
     sub = parser.add_subparsers(dest="command", required=True)
 

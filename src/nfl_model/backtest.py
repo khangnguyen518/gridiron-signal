@@ -55,6 +55,8 @@ ROLE_K_GRID = [0.0, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0]
 
 
 def prepare(pg: pd.DataFrame, scoring: dict[str, float] | None = None) -> pd.DataFrame:
+    """A copy of the player games with fantasy points scored from each stat line (default
+    scoring when `scoring` is None) and `played` = 1."""
     pg = pg.copy()
     pg["fantasy_points"] = fantasy_points(pg, scoring)
     pg["played"] = 1.0
@@ -167,6 +169,9 @@ def _mae(a: pd.Series, b: pd.Series) -> float:
 
 
 def tune(pg: pd.DataFrame, tg: pd.DataFrame) -> tuple[Params, pd.DataFrame]:
+    """Grid search on 2012-2017 by opportunity MAE: usage half-life, efficiency half-life and
+    shrinkage together, then the team half-life at their best. Returns the best Params and every
+    setting tried."""
     rows = []
     for hs, he, k in itertools.product(GRID["hl_share"], GRID["hl_eff"], GRID["k_mult"]):
         params = Params(hl_share=hs, hl_eff=he, k_mult=k)
@@ -333,6 +338,8 @@ MODELS = {
 
 
 def summarize(scored: pd.DataFrame) -> pd.DataFrame:
+    """MAE, bias, rank correlation and close-call accuracy for every model, by row set (all,
+    relevant, startable) and position, including ALL."""
     rows = []
     for subset_name, subset in row_sets(scored):
         for position in ["ALL"] + config.POSITIONS:
@@ -545,11 +552,15 @@ def keep_sim_keys(card: dict, previous: dict) -> tuple[dict, bool]:
 
 
 def latest_run_dir() -> Path | None:
+    """The newest `output/backtests/<run>/` folder that holds a model card, or None."""
     runs = sorted((config.OUTPUT_DIR / "backtests").glob("*/model_card.json"))
     return runs[-1].parent if runs else None
 
 
 def main(refresh: bool = False, skip_tune: bool = False) -> None:
+    """`nflm backtest`: tune, project 2018-2025 per variant, evaluate against Sleeper, fit the
+    Questionable rates, bootstrap intervals, and write the run folder and model/model_card.json.
+    `skip_tune` reuses the newest run's tuned half-lives and shrinkage."""
     print("Loading data...")
     pg = prepare(data.load_player_games(refresh))
     tg = data.load_team_games(refresh)

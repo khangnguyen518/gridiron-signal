@@ -23,8 +23,12 @@ A change that breaks a decision needs a new record first.
 - **Kalshi public API**: NFL spread, total and winner markets, recorded hourly into `nflm_raw` and read live; player props, recorded hourly (0015). Kept here, never loaded into sports_db.
 
 ## Repo map
-- `dbt/models/intermediate/` team games with lines, player games, availability, Sleeper crosswalk
-- `dbt/models/marts/`        `fct_player_game_inputs`, the model input table
+- `dbt/models/intermediate/` team games with lines, team play calling, player games, availability,
+  depth chart tiers, Sleeper crosswalk, recorded Kalshi lines matched to games
+- `dbt/models/marts/`        `fct_player_game_inputs` (the model input table), `fct_kalshi_closing_lines`
+- `src/nfl_model/cli.py`     the `nflm` command and its subcommands
+- `src/nfl_model/config.py`  settings from `.env`, read by every module
+- `src/nfl_model/data.py`    BigQuery reads cached as Parquet in `data/cache/`
 - `src/nfl_model/features.py` recency-weighted shares and shrunk rates
 - `src/nfl_model/availability.py` who is expected to play, share renormalization
 - `src/nfl_model/questionable.py` Questionable players' chance to play and production (0017)

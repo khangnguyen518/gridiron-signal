@@ -44,6 +44,7 @@ def fit(rows: pd.DataFrame, projection: str = "opp_points") -> dict[str, dict[st
     q = reg[reg["injury_status"].eq("Questionable")]
 
     def rates(g: pd.DataFrame) -> dict[str, float]:
+        """Share who played, and production when playing relative to healthy regulars."""
         played = g[g["played"].eq(1)]
         mult = played["fantasy_points"].sum() / played[projection].sum() / base
         return {"play": round(float(g["played"].mean()), 3), "mult": round(float(mult), 3), "n": len(g)}

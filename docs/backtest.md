@@ -448,6 +448,7 @@ higher because the blend rows are a different set; its coverage is what matters 
 |---|---|
 | `tuning_grid.csv` | every half-life and shrinkage setting with opportunity and points-share MAE |
 | `renorm_grid.csv` | every availability strength setting, per variant |
+| `role_grid.csv` | role curve half-life and carry pull settings (each with its best target pull) and their MAE, per variant |
 | `params.json` | chosen half-lives and shrinkage |
 | `blend_weights.csv` | weight and median shift per position, test season and variant, the weight without a shift, and the season's matchup weight |
 | `mae_by_season.csv` | MAE per model, season and variant |
@@ -459,12 +460,17 @@ higher because the blend rows are a different set; its coverage is what matters 
 | `scored.parquet` | every scored player-game of the live variant: projections, stat lines, blends and actuals, for analyses of the blend's misses |
 | `model_card.json` | params, live variant's betas and usual-total factors, blend weights; keeps `sim`, `sim_tails`, `range_mix` and `residual_table` from the previous card (warns to rerun `nflm sim-backtest` if the model changed) |
 
-`nflm league` uses the newest run folder that has a `model_card.json`.
+The backtest writes the same card to `model/model_card.json`, which `nflm league` and
+`nflm log-projections` read. They fall back to the newest run folder's `model_card.json` only
+when that file is missing.
 
 Simulation outputs (`output/sim_backtests/<run>/`): `calibration_grid.csv` (every setting) and
 `ranges.csv` (every row above, by position).
 
 ## Next steps that could move these numbers
-1. Discount Questionable players, and model who specifically replaces an absent starter.
-2. Simulate games for score distributions, then optimize win probability.
-3. Kalshi price history for midweek line movement.
+1. Model who specifically replaces an absent starter, and let teammates absorb a Questionable
+   player's expected missing share. (Discounting Questionable players themselves is done: 0017.)
+2. Kalshi price history for midweek line movement, recorded hourly since 2026-10-22 (0011).
+3. Read the 2026 forward test at the end of the regular season (0019).
+
+Done since this list began: game simulation and win probability (0012), Questionable players (0017).

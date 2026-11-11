@@ -310,6 +310,8 @@ def waiver_targets(
 
 
 def find_roster(rosters: list[dict], users: list[dict], user: str | None) -> dict:
+    """The roster owned by the display name `user`, matched without case. Stops with the list
+    of display names when `user` is missing or not found."""
     names = {u["user_id"]: (u.get("display_name") or "") for u in users}
     if user:
         for r in rosters:
@@ -362,6 +364,8 @@ def discord_summary(
 
 
 def run(league_id: str, user: str | None, week: int | None, discord: bool = False) -> None:
+    """`nflm league`: print the matchup, best lineup, bench, close calls and waiver targets for
+    one roster and week, write them as CSVs, and post a summary to Discord when `discord`."""
     lg = sleeper.league(league_id)
     st = sleeper.state()
     season = int(lg.get("season") or st["season"])

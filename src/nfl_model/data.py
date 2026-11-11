@@ -23,6 +23,7 @@ def _cached_query(name: str, sql: str, refresh: bool) -> pd.DataFrame:
 
 
 def load_player_games(refresh: bool = False) -> pd.DataFrame:
+    """The model input table, fct_player_game_inputs, sorted by player and kickoff."""
     df = _cached_query("player_games", f"select * from {_table('fct_player_game_inputs')}", refresh)
     return df.sort_values(["gsis_id", "kickoff_utc"]).reset_index(drop=True)
 
@@ -39,6 +40,7 @@ def load_team_games(refresh: bool = False) -> pd.DataFrame:
 
 
 def load_xwalk(refresh: bool = False) -> pd.DataFrame:
+    """The Sleeper ID to gsis_id crosswalk, int_player_xwalk."""
     return _cached_query("xwalk", f"select * from {_table('int_player_xwalk')}", refresh)
 
 
@@ -57,4 +59,5 @@ def refresh_all() -> None:
 
 
 def load_player_status(refresh: bool = False) -> pd.DataFrame:
+    """Pregame roster, injury and practice status per game and player, int_player_game_status."""
     return _cached_query("player_status", f"select * from {_table('int_player_game_status')}", refresh)

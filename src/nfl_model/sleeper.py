@@ -35,6 +35,7 @@ def state() -> dict:
 
 
 def players() -> dict:
+    """Every NFL player Sleeper knows, keyed by Sleeper ID. Cached a day in data/cache/."""
     path = config.CACHE_DIR / "sleeper_players.json"
     if path.exists() and time.time() - path.stat().st_mtime < 24 * 3600:
         return json.loads(path.read_text())
@@ -45,6 +46,7 @@ def players() -> dict:
 
 
 def players_frame() -> pd.DataFrame:
+    """One row per Sleeper player: name, position, team (nflverse code), injury status, gsis_id."""
     rows = []
     for pid, p in players().items():
         if not p:
@@ -67,14 +69,17 @@ def players_frame() -> pd.DataFrame:
 
 
 def league(league_id: str) -> dict:
+    """League settings: name, season, scoring_settings, roster_positions."""
     return _get(f"/v1/league/{league_id}")
 
 
 def rosters(league_id: str) -> list[dict]:
+    """One entry per roster: roster_id, owner_id, players."""
     return _get(f"/v1/league/{league_id}/rosters")
 
 
 def users(league_id: str) -> list[dict]:
+    """One entry per league member: user_id, display_name."""
     return _get(f"/v1/league/{league_id}/users")
 
 
@@ -84,10 +89,12 @@ def matchups(league_id: str, week: int) -> list[dict]:
 
 
 def projections(season: int, week: int) -> list[dict]:
+    """Sleeper's regular-season projections for one week: player_id and projected stats."""
     return _get(f"/projections/nfl/{season}/{week}", params={"season_type": "regular"})
 
 
 def trending_adds(hours: int = 24, limit: int = 200) -> dict[str, int]:
+    """Adds per Sleeper player ID over the last `hours`, for the most-added `limit` players."""
     rows = _get("/v1/players/nfl/trending/add", params={"lookback_hours": hours, "limit": limit})
     return {r["player_id"]: r["count"] for r in rows}
 
