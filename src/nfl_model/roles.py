@@ -31,6 +31,8 @@ UNLISTED_TIER = 9  # not on the depth chart: after every listed player
 
 @dataclass(frozen=True)
 class RoleParams:
+    """How roles are ranked, and how strongly shares are pulled toward their role curve (0014)."""
+
     rule: str = "depth"  # "depth": depth tier, then share; "share": share only
     hl_role: float = 8.0  # half-life in team games for role curves
     k_target: float = 0.0  # pull of target shares toward the role curve, in games

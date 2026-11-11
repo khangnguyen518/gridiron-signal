@@ -41,6 +41,8 @@ QUANTILES = (0.1, 0.25, 0.5, 0.75, 0.9)
 
 @dataclass(frozen=True)
 class SimParams:
+    """Simulation settings: usage and yardage noise (tuned) and game-script slopes (fitted)."""
+
     kappa: float = 50.0  # Dirichlet concentration of usage around shares (higher = steadier)
     eta: float = 0.5  # how strongly yards per play rise with the team's scoring factor
     yds_sd_mult: float = 1.0  # scales per-play yardage noise
@@ -50,6 +52,7 @@ class SimParams:
     script_rush: float = 0.0  # fitted: log rush attempts per 7 points of margin deviation (leading -> more)
 
     def as_dict(self) -> dict:
+        """The settings as a plain dict, for the model card."""
         return asdict(self)
 
 
@@ -277,5 +280,6 @@ def mix_with_residuals(
 
 
 def quantile_frame(draws: np.ndarray, quantiles: tuple[float, ...] = QUANTILES) -> pd.DataFrame:
+    """Per-row quantiles of simulated draws (rows x draws), in columns p10, p25, ..."""
     q = np.quantile(draws, quantiles, axis=1).T
     return pd.DataFrame(q, columns=[f"p{round(x * 100):02d}" for x in quantiles])

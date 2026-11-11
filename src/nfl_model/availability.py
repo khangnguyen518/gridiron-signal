@@ -56,6 +56,9 @@ KEY_SHARE = {"target_share": 0.15, "carry_share": 0.30, "att_share": 0.50}
 
 @dataclass(frozen=True)
 class Renorm:
+    """How strongly shares move toward the usual total: scale = (usual / S) ^ beta, per share type.
+    0 leaves shares as they are, and 1 rescales them fully."""
+
     beta_target: float = 0.0
     beta_carry: float = 0.0
     beta_att: float = 0.0

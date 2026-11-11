@@ -3,8 +3,9 @@
 ## Automatic refresh
 
 On the VM, `nflm refresh` rebuilds the prod tables at 10:15 UTC after sports_db's daily load, and
-`nflm league --discord` posts your lineup on Sunday and Thursday. Setup and VM commands are in
-`deploy/README.md`. The steps below are for a laptop.
+`nflm league --discord` posts your lineup on Sunday and Thursday. `nflm record-lines` appends Kalshi
+lines and player props every hour, and `nflm log-projections` logs the forward test daily at 15:00
+and Sunday at 16:45. Setup and VM commands are in `deploy/README.md`. The steps below are for a laptop.
 
 ## Weekly refresh on a laptop (before setting a lineup)
 
@@ -44,6 +45,7 @@ the new model live, including on the VM after its next pull.
 | "No model card" | no `model/model_card.json` and no backtest run | `uv run nflm backtest` |
 | Discord: "Skipped dbt build" | sports_db had no successful prod build in 30 hours | check sports_db's `logs/daily.log` on the VM and `raw_meta.load_runs` |
 | Discord: "dbt build ... failed" | a model or test failed | `logs/refresh.log` on the VM |
+| "every SEASON week N game has been played" | Sleeper's current week is finished (Tuesday, before Sleeper moves to the next week) | pass `--week` with the next week. `log-projections` skips this case on its own |
 | "Pick your team with --user" | no user given or name not found | use a display name from the printed list |
 | "Stats end at week N" | sports_db not loaded recently | weekly refresh steps 1-3 |
 | "Kalshi lines unavailable" | Kalshi API error | nothing; nflverse lines are used |
@@ -55,6 +57,7 @@ the new model live, including on the VM after its next pull.
 | A player is missing from projections | no NFL game yet, not QB/RB/WR/TE, or not in the crosswalk | check `int_player_xwalk` for his Sleeper ID |
 
 ## Housekeeping
-- `output/` and `data/cache/` are gitignored and safe to delete. Deleting `output/backtests/`
-  removes the live model card until the next backtest.
+- `output/` and `data/cache/` are gitignored and safe to delete. The live model card is the
+  committed `model/model_card.json`, so deleting `output/backtests/` leaves live projections
+  unchanged. It only removes the tuning grid that `nflm backtest --skip-tune` reuses.
 - Sleeper asks that `/v1/players/nfl` be called at most once a day; the cache handles that.

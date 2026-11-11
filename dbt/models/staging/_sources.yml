@@ -7,13 +7,21 @@ sources:
     schema: "{{ env_var('SPORTS_DB_STAGING', 'dev_staging') }}"
     tables:
       - name: stg_nflverse__schedules
+        description: Games, kickoff times, closing spread and total, and lines_known_at.
       - name: stg_nflverse__player_stats_week
+        description: Player box scores by week. Read for regular-season QB, RB, WR and TE rows.
       - name: stg_nflverse__team_stats_week
+        description: Team pass attempts, sacks, carries, and pass and rush TDs by week.
       - name: stg_nflverse__pbp
+        description: Play-by-play. Read for red-zone counts (inside the 20, no two-point tries) and play-calling rates.
       - name: stg_nflverse__rosters_weekly
+        description: Weekly roster status (ACT, INA game-day inactive, RES, PUP, SUS).
       - name: stg_nflverse__injuries_history
+        description: Injury report status and last practice status, as known before kickoff.
       - name: stg_nflverse__depth_charts_weekly
+        description: Weekly depth charts through 2024, with known_at.
       - name: stg_nflverse__depth_charts_history
+        description: Daily depth chart snapshots, the format nflverse uses from 2025, with snapshot_at.
 
   - name: sports_db_raw
     description: >
@@ -23,6 +31,7 @@ sources:
     schema: raw_nfl
     tables:
       - name: rosters_weekly
+        description: Weekly rosters. Read only for sleeper_id to gsis_id.
 
   - name: ff
     description: fantasy-football-draft-helper marts. Sleeper projections and league-scored actuals.
@@ -30,7 +39,9 @@ sources:
     schema: "{{ env_var('FF_MARTS', 'ff_marts') }}"
     tables:
       - name: int_weekly_projected_points
+        description: Sleeper's weekly projection per player, scored with the league's settings.
       - name: int_weekly_actual_points
+        description: Sleeper's league-scored actual points per player and week.
 
   - name: nflm_raw
     description: >

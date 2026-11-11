@@ -17,6 +17,8 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class Params:
+    """Tuned half-lives and shrinkage for player and team features (docs/model.md)."""
+
     hl_share: float = 4.0  # half-life in games for usage shares
     hl_eff: float = 16.0  # half-life in games for efficiency rates
     hl_team: float = 8.0  # half-life in games for team volume

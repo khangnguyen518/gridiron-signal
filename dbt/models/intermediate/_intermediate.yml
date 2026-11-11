@@ -174,3 +174,18 @@ models:
       - dbt_utils_free_unique_combo:
           arguments:
             columns: [game_id, gsis_id]
+    columns:
+      - name: game_id
+        description: nflverse game ID, from int_team_games.
+      - name: gsis_id
+        description: nflverse player ID.
+      - name: depth_position
+        description: Position on the chart (QB, RB, WR, TE). HB on the weekly chart becomes RB.
+      - name: depth_tier
+        description: >
+          1 = starter. Through 2024, the weekly chart's depth level. From 2025, the rank,
+          except for WRs, where tier = ceil(rank / 3).
+      - name: depth_rank
+        description: >
+          Order within the position. Through 2024 it equals depth_tier. From 2025 it is the
+          snapshot's pos_rank (WR ranks run 1 to 9 across the three receiver spots).

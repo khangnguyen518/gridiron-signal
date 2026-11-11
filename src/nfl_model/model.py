@@ -81,6 +81,8 @@ def fit_volume_models(
 def predict_volume(
     models: dict[str, LinearRegression], tg: pd.DataFrame, specs: dict[str, list[str]] | None = None
 ) -> pd.DataFrame:
+    """Predicted team volume per team-game (`team_<target>_hat`), clipped at 0. Rows missing an
+    input get NaN."""
     specs = specs or VOLUME_SPECS
     tg = _volume_inputs(tg)
     out = tg[["game_id", "team"]].copy()

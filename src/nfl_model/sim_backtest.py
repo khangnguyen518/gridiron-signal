@@ -57,6 +57,7 @@ QCOLS = [f"p{round(q * 100):02d}" for q in QUANTILES]
 
 
 def pinball(actual: np.ndarray, pred: pd.DataFrame) -> float:
+    """Mean quantile (pinball) loss over the QUANTILES columns of `pred`. Lower is better."""
     losses = []
     for q, c in zip(QUANTILES, QCOLS):
         d = actual - pred[c].to_numpy()
@@ -65,6 +66,7 @@ def pinball(actual: np.ndarray, pred: pd.DataFrame) -> float:
 
 
 def coverage(actual: np.ndarray, pred: pd.DataFrame) -> dict[str, float]:
+    """Share of outcomes inside the 10-90 and 25-75 ranges, below p10 and above p90."""
     return {
         "cover_10_90": float(np.mean((actual >= pred["p10"]) & (actual <= pred["p90"]))),
         "cover_25_75": float(np.mean((actual >= pred["p25"]) & (actual <= pred["p75"]))),
@@ -172,6 +174,7 @@ def qb_receiver_corr(
 
 
 def main(refresh: bool = False) -> None:
+    """`nflm sim-backtest`: the steps in this module's docstring."""
     card = json.loads(config.MODEL_CARD.read_text())
     params = Params(**card["params"])
     print("Projecting 2012-2025 with the live model...")

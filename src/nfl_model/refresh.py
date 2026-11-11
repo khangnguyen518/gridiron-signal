@@ -46,6 +46,7 @@ def sports_db_last_build() -> datetime | None:
 
 
 def dbt_build() -> int:
+    """Run `dbt build` on NFLM_DBT_TARGET with the repo's dbt, and return its exit code."""
     dbt = config.ROOT / ".venv" / "bin" / "dbt"
     cmd = [
         str(dbt) if dbt.exists() else "dbt",
@@ -60,6 +61,8 @@ def dbt_build() -> int:
 
 
 def main(force: bool = False) -> int:
+    """`nflm refresh`: dbt build if sports_db built in the last 30 hours (or `force`), else skip.
+    Skips and failures post to Discord. Returns the exit code."""
     # Cron sends stdout to logs/refresh.log, where Python buffers it and dbt (a subprocess) does not:
     # without line buffering, each day's status lines land after that day's dbt output
     sys.stdout.reconfigure(line_buffering=True)

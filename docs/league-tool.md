@@ -10,6 +10,7 @@ uv run nflm league                                  # league and user from .env,
 uv run nflm league --week 8
 uv run nflm league --league-id 1234567890 --user "display name"
 uv run nflm league --refresh                        # re-read BigQuery after a dbt build
+uv run nflm league --discord                        # post a summary to the alert webhook too
 ```
 
 Without a user, the command lists every team's display name and stops. Set
@@ -51,16 +52,22 @@ CSV copies of each table, plus every player's projections, go to
 | Situation | `proj` |
 |---|---|
 | Both projections exist | `w x ours + (1 - w) x Sleeper + shift + matchup`, w and the median shift per position from the model card (decision 0016); matchup = weight x the opponent's points allowed to his position (decision 0018) |
-
-The shown projection is the shifted blend, a median. Lineup ranking, the expected total, ranges and
-win probabilities use the blend before the shift, a mean: a lineup's total sums means, and the
-shift differs by position, so ranking on medians would tilt FLEX picks (decision 0016).
 | Rookie with no NFL game yet | Sleeper only (flag "no history: Sleeper only") |
 | Kicker or defense | Sleeper only |
 | Injury status Out, IR, PUP, Sus, NA or DNR | 0, flagged with the status |
 | Team on bye | 0, flagged "bye" |
 | Questionable | blend x chance to play x production if playing, by his last practice (decision 0017); flagged "Questionable, plays N%". Ranges include the games he sits (p10 is often 0). |
 | Doubtful | unchanged, flagged; counted as not playing when renormalizing teammates |
+
+The shown projection is the shifted blend, a median. Lineup ranking, the expected total, ranges and
+win probabilities use the blend before the shift, a mean: a lineup's total sums means, and the
+shift differs by position, so ranking on medians would tilt FLEX picks (decision 0016).
+
+**Games already played this week.** A game of the requested week that already has stats (Thursday
+night's game, by Sunday) is not projected again. Its stats count as history for usage, team volume
+and the matchup term, and the tool projects the rest of the week. If every game of the week has
+stats, `nflm league` stops with "every SEASON week N game has been played": pass `--week` for the
+next week. `nflm log-projections` logs nothing in that case and exits without an alert.
 
 **Teammates of absent players.** Before projecting, each team's usage shares are renormalized
 over the players Sleeper does not list as Out, IR, PUP, Sus, NA, DNR or Doubtful: RB, WR and TE
@@ -102,6 +109,7 @@ nested slot types that order gives the best total.
 
 ## Notes printed before the tables
 
+- **N game(s) this week already played:** those games are history, not projections (see above).
 - **Lines:** how many games used Kalshi vs nflverse.
 - **Stats end at week N:** sports_db's stats lag the week being projected. Usage from later
   weeks is missing, which matters most for rookies and changing roles. Follow `docs/runbook.md`.
